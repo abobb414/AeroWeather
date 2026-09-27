@@ -1,0 +1,15 @@
+# 本地私有配置：内含彩云天气 Token，绝不入库
+# 模板见 js/config.example.js
+js/config.local.js
+
+# 部署工具本地状态
+.vercel/
+
+# 会话 / 工作记忆目录
+.workbuddy/
+
+# 本机测试产物
+test/shots/
+
+# macOS
+.DS_Store

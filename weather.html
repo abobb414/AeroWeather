@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Weather</title>
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="assets/favicon-32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="assets/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="assets/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/weather.css">
+  <link rel="stylesheet" href="css/sky-gradient.css">
+  <script>
+    /* 首屏墨色预判：和 js/sky-gradient.js 的判定阈值保持一致，
+       避免模块加载完成前先白字闪一下。渐变只负责把颜色铺上去，墨色这里先定好。 */
+    (function () {
+      var d = new Date();
+      var h = d.getHours() + d.getMinutes() / 60;
+      var isDaylit = h >= 7 && h < 16.3;
+      document.documentElement.dataset.ink = isDaylit ? 'light' : 'dark';
+    })();
+  </script>
+</head>
+<body>
+
+<div class="sky-backdrop" id="skyBackdrop"></div>
+<!-- 窗外天气场景：雨 / 雪 / 闪电 / 星空全部画在这张 canvas 上（js/scene-weather.js）。
+     它是一层透明覆盖层，天空渐变仍在下面的 .sky-backdrop 里。 -->
+<canvas class="weather-effects" id="weatherEffects" aria-hidden="true"></canvas>
+
+<!-- 品牌标识：贴着视口左上角，不跟正文那根 1000px 中轴对齐 -->
+<div class="brand-bar">
+  <div class="brand">
+    <span class="brand-logo" aria-hidden="true"></span>
+    <span class="brand-words">
+      <span class="brand-name">Weather</span>
+      <span class="brand-sub">daily forecast</span>
+    </span>
+  </div>
+</div>
+
+<div class="sheet">
+
+  <!-- 顶栏：搜索 -->
+  <header class="masthead">
+    <div class="masthead-search">
+      <div class="search-field">
+        <span class="icon-glyph search-glyph" aria-hidden="true"></span>
+        <input id="searchInput" type="text" placeholder="搜索城市，例如 阳泉" autocomplete="off" spellcheck="false">
+        <button id="locationBtn" class="locate" title="定位到当前位置" aria-label="定位">
+          <span class="icon-glyph locate-glyph" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div id="searchResults" class="results" role="listbox"></div>
+    </div>
+  </header>
+
+  <!-- 主报告 -->
+  <section class="report" id="report">
+    <p class="place"><span class="mark-dot" id="markDot"></span><span id="region"></span></p>
+    <h1 class="city" id="cityName">载入中</h1>
+
+    <div class="reading">
+      <div class="reading-temp">
+        <span id="temperature">--</span><span class="deg">°</span>
+      </div>
+      <div class="reading-side">
+        <div class="glyph" id="conditionIcon"></div>
+        <p class="condition" id="condition">&nbsp;</p>
+        <p class="extremes" id="range">&nbsp;</p>
+      </div>
+    </div>
+
+    <dl class="facts" id="facts"></dl>
+  </section>
+
+  <!-- 24 小时 -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>未来 24 小时</h2>
+      <span class="panel-note" id="hourlyNote"></span>
+    </div>
+    <div class="timeline-wrap">
+      <div class="timeline" id="timeline">
+        <svg class="curve" id="curve" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="hours" id="hourlyList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 天 -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>未来 7 天</h2>
+      <span class="panel-note" id="dailyNote"></span>
+    </div>
+    <div class="days" id="dailyList"></div>
+  </section>
+
+  <!-- 空气 -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>空气质量</h2>
+    </div>
+    <div class="air">
+      <div class="air-figures">
+        <div class="figure">
+          <dt>PM2.5</dt>
+          <dd><span id="pm25">--</span><i>μg/m³</i></dd>
+        </div>
+        <div class="figure">
+          <dt>PM10</dt>
+          <dd><span id="pm10">--</span><i>μg/m³</i></dd>
+        </div>
+        <div class="figure">
+          <dt>AQI</dt>
+          <dd><span id="aqiIndex">--</span><i>国标</i></dd>
+        </div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-track"><span class="gauge-pin" id="aqiPin"></span></div>
+        <div class="gauge-scale"><span>优</span><span>良</span><span>轻度</span><span>中度</span><span>重度</span><span>严重</span></div>
+      </div>
+      <p class="air-note" id="aqiAdvice">&nbsp;</p>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <!-- 这里写的是「本次实际用的数据源」，由 weather.js 按取数结果刷新。
+         写死成源名列表是错的：万一退回本地示例数据，页脚还在吹彩云/Open-Meteo。 -->
+    <span id="sourceNote">彩云天气 · Open-Meteo</span>
+    <span id="stamp"></span>
+  </footer>
+
+</div>
+
+<!-- 玻璃面水珠：压在内容之下的那层是「窗外」，这层是「镜头前方」——
+     雨珠糊在玻璃上、就在眼前，所以要在内容之上、且保持锐利（js/glass-layer.js）。 -->
+<canvas class="glass-layer" id="glassLayer" aria-hidden="true"></canvas>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="js/config.local.js" onerror="void 0"></script>
+<script type="module" src="js/weather.js"></script>
+</body>
+</html>

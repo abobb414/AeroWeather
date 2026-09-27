@@ -1,0 +1,11 @@
+/* 天空背景层 —— 固定在最底层。
+   渐变的实际值由 js/sky-gradient.js 按当前时刻逐帧插值后写进 inline style，
+   这里的色值只是 JS 就绪前的兜底（按下下午的浅蓝天空给）。 */
+.sky-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(180deg, #b8d4e8 0%, #dce8ed 54%, #ece8df 100%);
+  transition: background 3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
