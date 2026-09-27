@@ -63,28 +63,17 @@
 
 ![强对流实验台 · 雷暴](docs/screenshots/storm-thunderstorm.jpg)
 
-<table>
-<tr>
-<td width="50%">
-
-**强对流实验台 · 雪**
-
-八种场景随时切换，定格闪电单独观察分叉形态。
+**强对流实验台 · 雪** —— 八种场景随时切换，定格闪电单独观察分叉形态。
 
 ![强对流实验台 · 雪](docs/screenshots/storm-snow.jpg)
 
-</td>
-<td width="50%">
+<div align="center">
 
-**移动端**
+**移动端** —— 同一套代码在 390px 视口下的自适应布局。
 
-同一套代码在 390px 视口下的自适应布局。
+<img src="docs/screenshots/mobile-dashboard.jpg" width="42%" alt="移动端">
 
-![移动端](docs/screenshots/mobile-dashboard.jpg)
-
-</td>
-</tr>
-</table>
+</div>
 
 ---
 
