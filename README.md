@@ -243,7 +243,8 @@ python3 -m http.server 8000
 │   ├── config.example.js   # 彩云 Token 模板（config.local.js 不入库）
 ├── assets/
 │   ├── china-cities.json   # 全国区划库（含中心点，gzip 后 53 KB）
-│   └── *.png / *.ico       # logo（墨色遮罩）· favicon
+│   ├── logo-weather.png    # 站名字标（墨色遮罩）
+│   └── favicon.*           # 站点图标：svg（优先）+ ico 七档 + 16/32/180 png
 └── docs/screenshots/       # README 展示图：3 张主看板 + 八种天气 + 1 张实验台面板
 ```
 
@@ -261,4 +262,4 @@ python3 -m http.server 8000
 
 ## 更新日志
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v1.0.2**（2026-09-29）。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v1.0.3**（2026-09-30）。
