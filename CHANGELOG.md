@@ -28,6 +28,13 @@
   图层序另有一条不读 `z-index` 的端到端像素判据（把玻璃层刷成品红后量文字墨色占比）。
 - `weather.js` 暴露 `window.__glassLayer` / `window.__sceneWeather` 调试句柄，
   与 `storm.js` 的暴露方式对齐，便于自动化断言。
+- **（同日补充）`config.local.js` 此前会被一并部署到 CDN**：`.vercelignore` 只排除了
+  `test` / `shots` / `.workbuddy`，而 `.gitignore` 里那行 `js/config.local.js` 对 Vercel
+  无效 —— 结果是 `https://weather.abobb.com/js/config.local.js` 可直接下载，里面的彩云
+  Token 暴露在公网。现已加 `**/config.local.js` 排除并重新部署（该 URL 现返回 404）。
+  ⚠️ 纯静态站无法真正隐藏前端 Token，本仓库的做法是「不上传、本地才启用彩云」，
+  线上因此回落到 Open-Meteo（页脚如实标注数据源）。要同时兼顾安全与彩云能力，
+  需把请求移到自建 Worker 代理，把 Token 放在服务端环境变量里。
 
 ## [1.0.0] - 2026-09-29
 

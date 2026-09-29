@@ -3,3 +3,8 @@ shots
 .workbuddy
 .gitignore
 .DS_Store
+
+# 🔴 本地私有配置：内含真实彩云 Token，绝不能上传到 CDN。
+# 注意 .gitignore 对 Vercel 无效（那行 `js/config.local.js` 管不到部署），
+# 必须在这里再排除一次 —— 漏掉的后果是 Token 在公网裸奔。
+**/config.local.js
