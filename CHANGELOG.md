@@ -3,6 +3,34 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.3] - 2026-09-30
+
+### 变更
+
+- **站点图标整套重做**。原先 `favicon.ico` 只有 16 / 32 / 48 三档，最大帧 48px，
+  再往上都是放大插值 —— 在大尺寸场景（书签栏、标签页切换器、分享卡片）下发虚。
+
+  现从 icons8 官方 `pulsar-color / partly-cloudy-day` 的 **1600px 源图**原样等比缩放重出：
+
+  | 文件 | 规格 |
+  |---|---|
+  | `favicon.ico` | 七档 16 / 24 / 32 / 48 / 64 / 128 / **256**（256 为原生帧，非放大） |
+  | `favicon.svg` | **新增**，内嵌位图，浏览器优先取它，任意尺寸不糊 |
+  | `favicon-16.png` · `favicon-32.png` | 与 ICO 的对应帧**逐像素差 0** |
+  | `favicon-180.png` | apple-touch，不透明底（iOS 会把透明区渲成黑块） |
+
+- 页面改为五条 `<link>` 且全部带 `?v=2` —— 浏览器对 favicon 的缓存极其顽固，
+  只换文件不改 URL 可能几个月看不到新图标。`storm.html` 原先**一个图标都没有**，一并补上。
+
+### 说明
+
+- **源图右侧本身是被裁的**：icons8 CDN 上这一 slug 的 16 / 32 / 64 / 256 / 512 / 1024 / 1600
+  **每一档**最右一列都还有内容（云的右侧圆角切在画布外），同族的 `clouds`、
+  `partly-cloudy-day--v1/--v2` 亦然。按「以源图为准」的原则原样采用，未做补画或对齐裁切。
+- 因此新版在同一像素尺寸下会比旧版**略小约 5%** —— 旧图是在同一张被裁的图上又放大约 5%，
+  新图回到源图原始构图，这是必然结果。
+- 该图标描边为深靛蓝，**在深色标签栏上本就几乎看不见** —— 新旧一致，非本次引入。
+
 ## [1.0.2] - 2026-09-29
 
 ### 修复
@@ -96,6 +124,7 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[1.0.3]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.3
 [1.0.2]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.2
 [1.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.1
 [1.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.0
