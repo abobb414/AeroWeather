@@ -65,6 +65,22 @@ body {
   transition: background 3s ease;
 }
 
+/* 视口边缘 tint 采样条：Safari 26 从「贴边 fixed 元素的 background-color」
+   取浏览器工具栏底色，渐变层采样不到 → 白条。两条带专做采样源，颜色等于
+   渐变的 top / bot 端点，肉眼无缝。主站对应 css/sky-gradient.css 里的
+   .sky-edge-tint，采样门槛（含「高度 >4px、实测 11–12px」）写在那边的注释里。 */
+.sky-edge-tint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: -1;
+  pointer-events: none;
+  transition: background-color 3s ease;
+}
+.sky-edge-top { top: 0; background-color: rgb(11, 13, 20); }
+.sky-edge-bottom { bottom: 0; background-color: rgb(52, 51, 66); }
+
 /* ② 窗外世界：雨/雪/闪电 */
 .weather-effects {
   position: fixed;
@@ -74,6 +90,7 @@ body {
   height: 100%;
   z-index: -1;
   pointer-events: none;
+  transition: filter 1.2s ease;
 }
 
 /* ③ 玻璃水珠：在内容之上，保持锐利 */
@@ -295,6 +312,8 @@ body.panel-hidden .reopen {
 <body>
 
 <div class="sky-backdrop"></div>
+<div class="sky-edge-tint sky-edge-top"></div>
+<div class="sky-edge-tint sky-edge-bottom"></div>
 <canvas class="weather-effects" id="weatherEffects" aria-hidden="true"></canvas>
 
 <div class="title">

@@ -9,3 +9,46 @@
   transition: background 3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
+
+/* ============================================================
+   视口边缘 tint 条（2026-09-28 新增，别删）
+   ------------------------------------------------------------
+   背景：Safari 26 不再采信 <meta name="theme-color">，改成自己在页面里找一个
+   「贴着视口边缘的 fixed / sticky 元素」，取它的 background-color 当作浏览器
+   工具栏底色；取不到就退到 body 的 background-color（html 的被忽略）；
+   再取不到才用系统默认 —— 浅色外观下就是纯白。
+
+   我们的 .sky-backdrop 虽然 inset:0 铺满全屏，但它画的是渐变
+   （background-image），background-color 是 transparent；而 body 为了不盖住
+   负 z-index 的天空层也必须是 transparent。逐级落空 → 深色页面上顶着纯白横条。
+
+   所以补两条贴边的纯色带专门当采样源：顶部取天空 top 色、底部取 bot 色。
+
+   🔴 逐条对齐公开逆向出的采样门槛（出处：andesco/safari-color-tinting，
+      也就是 WebKit bug 301756 里反复引用的那份），任何一条不满足就整条被跳过：
+        position: fixed | sticky            ✓
+        距顶 ≤4px / 距底 ≤3px                ✓（top:0 / bottom:0）
+        宽 ≥80% 视口                         ✓（left:0;right:0 满宽）
+        高 >4px，实测要 11–12px              ✓（12px ← 曾错写成 4px，踩在门槛下面）
+        不能有 backdrop-filter / display:none ✓
+      注意：**「4px」是位置门槛，不是高度门槛**，别再把 height 写成 4px。
+
+   两条带画在渐变之上、颜色就是渐变的 0% / 100% 端点色，边缘处差异只有两三个
+   色阶，肉眼不可见 —— test/edge-tint.mjs 有像素级对比守着这条。
+
+   色值由 js/sky-gradient.js 的 applySkyTheme() 逐次写进 inline style；
+   这里的色值只是 JS 就绪前的兜底，与 .sky-backdrop 兜底渐变的两端一致。
+   ============================================================ */
+.sky-edge-tint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 12px;              /* 门槛 >4px；实测 11–12px 才稳，别调小 */
+  z-index: -1;               /* 压在天空渐变之上、正文之下（正文是 z auto） */
+  pointer-events: none;
+  transition: background-color 3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sky-edge-top { top: 0; background-color: #b8d4e8; }
+
+.sky-edge-bottom { bottom: 0; background-color: #ece8df; }

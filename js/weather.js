@@ -143,6 +143,7 @@ function updateSkyGradient() {
   const hour = simulatedHour ?? (now.getHours() + now.getMinutes() / 60);
   const theme = applySkyTheme(hour, currentSceneKey);
   weatherScene.setSky(theme.colors, theme.luminance);
+  glassLayer.setSky(theme.colors);   // 折射取景要知道玻璃后面的天色
 
   // 水珠的六层高光全部由环境光染色，环境光跟着天色走。
   // dark 也抬一个下限：浸润圈、透镜中段、珠体边缘全靠它压出轮廓，

@@ -28,6 +28,12 @@
 <body>
 
 <div class="sky-backdrop" id="skyBackdrop"></div>
+<!-- 贴视口上下边缘的纯色采样条：iOS 26 Safari 从「贴边 fixed 元素的
+     background-color」推导浏览器工具栏底色，渐变层采样不到，靠这两条补上。
+     颜色 = 天空渐变的 top / bot 端点，肉眼与渐变无缝；别删，原因见
+     css/sky-gradient.css 里那段注释。 -->
+<div class="sky-edge-tint sky-edge-top" id="skyEdgeTop"></div>
+<div class="sky-edge-tint sky-edge-bottom" id="skyEdgeBottom"></div>
 <!-- 窗外天气场景：雨 / 雪 / 闪电 / 星空全部画在这张 canvas 上（js/scene-weather.js）。
      它是一层透明覆盖层，天空渐变仍在下面的 .sky-backdrop 里。 -->
 <canvas class="weather-effects" id="weatherEffects" aria-hidden="true"></canvas>

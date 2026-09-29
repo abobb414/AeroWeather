@@ -12,7 +12,7 @@
  *   ④ 下缘透光弧 光斜穿水珠厚度的边缘折射出的那道弧（叠在 ② 的暗部之上）
  *   ⑤ 镜面高光 极小、极锐、近全白，是「水」的签名
  *   ⑥ 散射高光 大而柔，在镜面高光外侧
- * 再加上滑落水痕与落珠涟漪。
+ * 再加上滑落水痕。（落珠涟漪已按用户要求移除。）
  *
  * ② 与 ④ 的关系是这套设计里最容易做反的一处：② 的两端收边是**暗色**
  * （0.42 处 0.065·dark、1.0 处 0.14·dark，这是全图最大的两个暗色系数），
@@ -59,6 +59,19 @@
  *    只有 3.9% —— 等于没画。这是唯一需要修的东西，也只用一种方式修：
  *    给水痕的 alpha 乘一个由环境亮度反推的系数 k，几何、颜色、结构一概不动。
  *    珠体的夜间明亮度补偿在 sky-gradient / weather.js 侧（waterTint）。
+ *
+ * 3. 「贴在玻璃外侧」的空间线索（2026-09-29，用户明确要求修「水珠像浮在空中」）。
+ *    原来六层全是半透明叠色，珠子后面的背景原样透出来 —— 读成肥皂泡 / 浮尘。
+ *    真实的窗上水珠有四个把它「钉」在玻璃上的线索，这里逐一补上：
+ *      a. 真实折射：大于 REFRACT_MIN_R 的水珠从「天空 + 窗外粒子层」取景，
+ *         旋转 180° 缩进珠内（透镜成倒像），不再透出身后的背景。
+ *      b. 暗边：透镜边缘发生全反射，一圈偏暗（精灵里的 ⑦ 层）。
+ *      c. 玻璃水膜：整面玻璃蒙一层极淡的水雾，滑落的水珠在身后擦出清晰的轨道，
+ *         随后慢慢回雾 —— 这是「珠子与玻璃在同一平面」最强的一条线索。
+ *      d. 行为：雨点砸到玻璃上是随机落点、先挂住不动，靠合并长大，长到挂不住
+ *         才滑落；滑落时一路吞掉静止小珠、在身后留下细小的残珠。
+ *    配套地，storm.js 在降水天气里给窗外粒子层加一点景深虚化（焦点在玻璃上）。
+ *    原有六层的全部系数不动。
  */
 
 const TAU = Math.PI * 2;
@@ -87,6 +100,32 @@ const HLY = [-0.40, -0.33, -0.26];
 
 /* 同屏水珠上限，与参考实现同值。只在顶部补新珠时生效，不参与形态。 */
 const MAX_DROPS = 900;
+
+/* ---- 偏离 3 用到的量 ---- */
+const SCENE_SCALE = 0.5;        // 折射取景 / 水膜画布相对 CSS 像素的比例
+const REFRACT_MIN_R = 2.4;      // 更小的细珠折射看不出区别，只费性能（逐珠一次 clip）
+const REFRACT_FOV = 2.7;        // 一颗珠「看到」的背景范围是自身直径的多少倍
+const RIM_TONE = [4, 6, 12];    // 暗边色：接近黑，深色夜空上也仍然是「压暗」
+const WET_LEVEL = { drizzle: 0.45, rain: 1, thunderstorm: 2 };
+const SLIDE_R = 5.2;            // 静止水珠长到这个半径就挂不住了
+const GRID = 28;                // 合并检测的空间网格边长（> 两颗最大珠的合并距离）
+
+const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
+/** 水膜擦除笔刷：柔边圆 */
+function makeBrush() {
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 32;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grd.addColorStop(0, 'rgba(0,0,0,1)');
+  grd.addColorStop(0.6, 'rgba(0,0,0,0.7)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 32, 32);
+  return c;
+}
 
 /** 半径 → 档位索引 */
 function bucketOf(r) {
@@ -175,6 +214,19 @@ function renderDropSprite(r, dpr, L, spec, bodyLum, darkK, variant) {
   g.fillStyle = body;
   g.fill();
 
+  // ---- ⑦ 暗边（偏离 3b）：透镜边缘全反射，外圈偏暗 ----
+  // 用近黑色而不是 L.dark：深色夜空上 L.dark 反而比底色亮，会变成描边。
+  const rimK = r < 1.5 ? 0.45 : 1;
+  const rim = g.createRadialGradient(bx, by, rx * 0.62, bx, by, rx);
+  rim.addColorStop(0, rgbStr(RIM_TONE, 0));
+  rim.addColorStop(0.70, rgbStr(RIM_TONE, 0.16 * rimK));
+  rim.addColorStop(0.92, rgbStr(RIM_TONE, 0.50 * rimK));
+  rim.addColorStop(1, rgbStr(RIM_TONE, 0.22 * rimK));
+  g.beginPath();
+  g.ellipse(bx, by, rx, ry, 0, 0, TAU);
+  g.fillStyle = rim;
+  g.fill();
+
   // ---- ③ 焦散亮斑：光被水珠聚焦，位于底部偏内 ----
   if (r > 1.6) {
     const kx = cx + rx * 0.02;
@@ -226,28 +278,11 @@ function renderDropSprite(r, dpr, L, spec, bodyLum, darkK, variant) {
 
   g.restore();
 
-  /* 用「反向 alpha」把参考实现里的透明合成还原回来。
-     参考是同一次 draw call 内逐层 fill，后画的层会遮住先画的层，
-     每层净增量 = 系数 × d.alpha × (1 − 已积累的覆盖率)。
-     精灵把 d.alpha 拆给了 globalAlpha，于是覆盖比冻结成 (1 − Σ系数 · spec/bodyLum)。
-     先把六层按源序合成到离屏画布，再取 1 − (1 − R)(1 − G)(1 − B) 得到合成覆盖率，
-     用它当 alpha、用合成色当 fill —— 逐珠再乘 globalAlpha 时，
-     结果与参考的逐层现场绘制在 O(a²·d) 内一致。 */
-  const a0 = g.getImageData(0, 0, c.width, c.height);
-  const d0 = a0.data;
-  const inv = g.createImageData(c.width, c.height);
-  const di = inv.data;
-  const ch = c.width * c.height;
-  for (let i = 0; i < ch; i += 1) {
-    const o = i * 4;
-    const a = d0[o + 3] / 255;
-    if (a <= 0) continue;
-    di[o] = Math.min(255, Math.round(d0[o] / a));
-    di[o + 1] = Math.min(255, Math.round(d0[o + 1] / a));
-    di[o + 2] = Math.min(255, Math.round(d0[o + 2] / a));
-    di[o + 3] = Math.round(a * 255);
-  }
-  g.putImageData(inv, 0, 0);
+  /* 这里原先有一段「反向 alpha」：getImageData 后把 RGB 再除一次 alpha。
+     但 getImageData 返回的本来就是**非预乘**的 RGBA，再除一次等于把低 alpha
+     像素的颜色放大十几倍、夹到 255 —— 每颗珠子外圈被漂成一圈纯白，
+     正是「肥皂泡 / 浮在空中」观感的来源之一。离屏画布按源序逐层 fill
+     本身就是参考实现的合成方式，不需要任何后处理。 */
 
   return { canvas: c, side };
 }
@@ -267,12 +302,23 @@ export class GlassLayer {
     this.lightning = 0;
 
     this.drops = [];
-    this.rings = [];
     this.spawnAcc = 0;
     this.t = 0;
 
     this._sprites = new Map();     // 精灵表：(档位_变体) → 精灵
     this._sig = '';
+
+    // 偏离 3：折射取景与玻璃水膜
+    this._skyPal = null;           // 天空三色（折射取景要自己画一份天空）
+    this._skyCanvas = null;        // 天空渐变的小画布，拉伸使用
+    this._scene = null;            // 天空 + 窗外粒子的半分辨率合成，折射从这里取景
+    this._sceneCtx = null;
+    this._film = null;             // 玻璃水膜（颜色 = tint，alpha = 雾的浓度）
+    this._filmCtx = null;
+    this._filmTint = '';
+    this._brush = null;
+    this._fog = 0;                 // 水膜当前可见度，向 fogTarget 缓动
+    this._grid = new Map();
 
     this._raf = null;
     this._last = 0;
@@ -334,12 +380,141 @@ export class GlassLayer {
     this.canvas.style.width = `${this.w}px`;
     this.canvas.style.height = `${this.h}px`;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    // 折射取景与水膜都用半分辨率：折射后的像被缩进 2~26px 的珠子里，
+    // 水膜本身就是软的，全分辨率只是白花填充率。
+    const sw = Math.max(1, Math.round(this.w * SCENE_SCALE));
+    const sh = Math.max(1, Math.round(this.h * SCENE_SCALE));
+    if (!this._scene) {
+      this._scene = document.createElement('canvas');
+      this._film = document.createElement('canvas');
+      this._brush = makeBrush();
+    }
+    this._scene.width = sw;
+    this._scene.height = sh;
+    this._film.width = sw;
+    this._film.height = sh;
+    this._sceneCtx = this._scene.getContext('2d');
+    this._filmCtx = this._film.getContext('2d');
+    this._filmTint = '';
+
     this.build();
     this.render();
   }
 
+  /* ------------------------------------------------------------ 水膜 */
+
+  /** 水膜纹理：一层匀雾 + 细密的微珠点，放大到全屏后读成「起雾的玻璃」 */
+  _filmPattern() {
+    if (this._filmPat) return this._filmPat;
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,0.5)';
+    g.fillRect(0, 0, 256, 256);
+    g.fillStyle = '#fff';
+    for (let i = 0; i < 1400; i += 1) {
+      g.globalAlpha = rnd(0.4, 1);
+      g.beginPath();
+      g.arc(Math.random() * 256, Math.random() * 256, rnd(0.3, 0.9), 0, TAU);
+      g.fill();
+    }
+    this._filmPat = c;
+    return c;
+  }
+
+  /** 把水膜重新铺满（切换天气 / 改尺寸时） */
+  resetFilm() {
+    const g = this._filmCtx;
+    if (!g) return;
+    g.globalCompositeOperation = 'copy';
+    g.globalAlpha = 1;
+    g.fillStyle = g.createPattern(this._filmPattern(), 'repeat');
+    g.fillRect(0, 0, this._film.width, this._film.height);
+    g.globalCompositeOperation = 'source-over';
+    this._filmTint = '';
+  }
+
+  /** 在水膜上擦出一块清晰区域（CSS 坐标） */
+  wipe(x, y, r, strength = 1) {
+    const g = this._filmCtx;
+    if (!g) return;
+    const s = r * SCENE_SCALE;
+    g.globalCompositeOperation = 'destination-out';
+    g.globalAlpha = strength;
+    g.drawImage(this._brush, x * SCENE_SCALE - s, y * SCENE_SCALE - s, s * 2, s * 2);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+  }
+
+  /** 水膜慢慢回雾：往擦过的地方重新铺纹理 */
+  _regrowFilm(dt) {
+    const g = this._filmCtx;
+    if (!g) return;
+    g.globalAlpha = clamp(dt * 0.16, 0, 1);
+    g.fillStyle = g.createPattern(this._filmPattern(), 'repeat');
+    g.fillRect(0, 0, this._film.width, this._film.height);
+    g.globalAlpha = 1;
+  }
+
+  /** 水膜的颜色跟环境光走：只换颜色、保留 alpha（也就是保留擦出来的轨道） */
+  _tintFilm() {
+    const g = this._filmCtx;
+    const col = rgbStr(mix(this.light.tint, [255, 255, 255], 0.35));
+    if (!g || col === this._filmTint) return;
+    this._filmTint = col;
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = col;
+    g.fillRect(0, 0, this._film.width, this._film.height);
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  /** 折射取景：天空 + 窗外粒子层，合成到半分辨率画布 */
+  _captureScene() {
+    const g = this._sceneCtx;
+    if (!g) return false;
+    const sw = this._scene.width;
+    const sh = this._scene.height;
+    if (this._skyCanvas) g.drawImage(this._skyCanvas, 0, 0, sw, sh);
+    else { g.fillStyle = rgbStr(this.light.dark); g.fillRect(0, 0, sw, sh); }
+    const outside = document.getElementById('weatherEffects');
+    if (outside && outside.width) g.drawImage(outside, 0, 0, sw, sh);
+    return true;
+  }
+
+  /** 降水强度：0 = 干玻璃，毛毛雨 0.45，雨 1，雷暴 2 */
+  get wetLevel() {
+    return WET_LEVEL[this.weather] || 0;
+  }
+
   get isWet() {
-    return this.weather === 'rain' || this.weather === 'thunderstorm';
+    return this.wetLevel > 0;
+  }
+
+  /** 水膜目标浓度：雨越大玻璃越雾 */
+  get fogTarget() {
+    return this.isWet ? 0.05 + 0.03 * this.wetLevel : 0;
+  }
+
+  /** 由天空引擎注入三层天色：折射取景需要知道「玻璃后面」是什么颜色 */
+  setSky(pal) {
+    if (!pal) return;
+    const sig = `${pal.top.map(Math.round)}|${pal.mid.map(Math.round)}|${pal.bot.map(Math.round)}`;
+    if (sig === this._skyPal?.sig) return;
+    this._skyPal = { sig, top: pal.top, mid: pal.mid, bot: pal.bot };
+    if (!this._skyCanvas) {
+      this._skyCanvas = document.createElement('canvas');
+      this._skyCanvas.width = 4;
+      this._skyCanvas.height = 256;
+    }
+    const g = this._skyCanvas.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, rgbStr(pal.top));
+    grd.addColorStop(0.52, rgbStr(pal.mid));
+    grd.addColorStop(1, rgbStr(pal.bot));
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 4, 256);
   }
 
   get isStorm() {
@@ -380,7 +555,6 @@ export class GlassLayer {
    */
   build() {
     this.drops = [];
-    this.rings = [];
     this.spawnAcc = 0;
     if (!this.w || !this.h) return;
     const area = this.w * this.h;
@@ -400,15 +574,21 @@ export class GlassLayer {
       return;
     }
 
+    this.resetFilm();
+
     // 幂律分布：大多数是 0.8~2.6px 的细密珠，少数是 5.5~13px 的大珠
-    const smallN = Math.floor(area / 5200);
-    const bigN = Math.floor(area / 42000);
+    // 毛毛雨只有细珠，而且更稀
+    const drizzle = this.weather === 'drizzle';
+    const smallN = Math.floor((area / 5200) * (drizzle ? 0.6 : 1));
+    const bigN = drizzle ? 0 : Math.floor(area / 42000);
     for (let i = 0; i < smallN; i += 1) this.drops.push(this.mkDrop(rnd(0.8, 2.6), false));
     for (let i = 0; i < bigN; i += 1) this.drops.push(this.mkDrop(rnd(5.5, 13), false));
 
-    // 初始就给一部分大珠分配滑落速率，让画面开机即有流动感
+    // 初始就给一部分大珠分配滑落速率，让画面开机即有流动感；
+    // 其余的挂在玻璃上，等雨点把它们喂大
     for (const d of this.drops) {
       if (d.r > 4.5 && Math.random() > 0.72) this.startRun(d);
+      else d.hold = Math.max(d.hold, d.r + rnd(0.5, 3));
     }
   }
 
@@ -428,6 +608,10 @@ export class GlassLayer {
       variant: Math.floor(Math.random() * VARIANTS),
       trail: null,
       trailMax: 0,
+      hold: rnd(SLIDE_R, SLIDE_R * 1.6),   // 长到多大才挂不住（逐珠不同，免得同时起跑）
+      travel: 0,
+      nextBead: rnd(10, 34),
+      owner: null,                          // 残珠刚落下时别被母珠吞回去
     };
   }
 
@@ -439,6 +623,7 @@ export class GlassLayer {
     d.vy = Math.sin(axis) * d.vy;
     d.trail = [];
     d.trailMax = Math.round(rnd(20, 52));
+    d.owner = null;
   }
 
   /** 玻璃倾角（雨天默认近乎垂直下落，雷暴时阵风偏移更大） */
@@ -447,43 +632,117 @@ export class GlassLayer {
     return Math.PI / 2 + rnd(-gustRange, gustRange);
   }
 
-  /** 雨滴撞上玻璃：产生涟漪 */
-  impact(x, y) {
-    if (!this.isWet) return;
-    this.rings.push({ x, y, r: 0, max: rnd(10, 26), life: 1 });
-    // 涟漪上限，防止长跑之后数组无限膨胀（参考实现没有这一层，属工程加固）
-    if (this.rings.length > 60) this.rings.splice(0, this.rings.length - 60);
+  /* ------------------------------------------------------------ 更新 */
+
+  /** 一滴雨砸到玻璃上：随机落点；与已有静止珠重叠就并进去（静止珠就是这么长大的） */
+  _landDrop() {
+    const x = Math.random() * this.w;
+    const y = Math.random() * this.h;
+    // 九成细密珠，一成大一号 —— 分布与参考的顶部补珠一致
+    const r = rnd(0.8, 3.2) * (Math.random() > 0.90 ? 2.0 : 1);
+    for (const o of this.drops) {
+      if (o.vy || o.static) continue;
+      const dx = o.x - x;
+      const dy = o.y - y;
+      const reach = (o.r + r) * 0.85;
+      if (dx * dx + dy * dy < reach * reach) {
+        o.r = Math.min(16, Math.sqrt(o.r * o.r + r * r));
+        o.alpha = Math.min(0.9, o.alpha + 0.04);
+        // 并入时珠心往新水滴那边挪一点，形状才会慢慢变得不规则
+        o.x += (x - o.x) * 0.25;
+        o.y += (y - o.y) * 0.25;
+        return;
+      }
+    }
+    if (this.drops.length >= MAX_DROPS) return;
+    const d = this.mkDrop(r, false);
+    d.x = x;
+    d.y = y;
+    this.drops.push(d);
   }
 
-  /* ------------------------------------------------------------ 更新 */
+  /** 滑落珠 d 吞掉相邻格里碰到的水珠（面积守恒） */
+  _absorb(d, grid) {
+    const gx = Math.floor(d.x / GRID);
+    const gy = Math.floor(d.y / GRID);
+    for (let i = -1; i <= 1; i += 1) {
+      for (let j = -1; j <= 1; j += 1) {
+        const cell = grid.get(`${gx + i},${gy + j}`);
+        if (!cell) continue;
+        for (const o of cell) {
+          if (o === d || o.dead || o.owner === d) continue;
+          const dx = o.x - d.x;
+          const dy = o.y - d.y;
+          const reach = (o.r + d.r) * 0.8;
+          if (dx * dx + dy * dy >= reach * reach) continue;
+          // 两颗都在滑：大的吞小的
+          const big = o.vy && o.r > d.r ? o : d;
+          const small = big === d ? o : d;
+          big.r = Math.min(16, Math.sqrt(big.r * big.r + small.r * small.r));
+          big.vy = Math.min(big.vy * 1.08 + 0.05, 3.2);   // 合并后加速
+          big.alpha = Math.min(0.92, big.alpha + small.alpha * 0.2);
+          small.dead = true;
+          if (small === d) return;
+        }
+      }
+    }
+  }
 
   update(dt) {
     this.t += dt;
+    const wet = this.isWet;
 
-    // 雨一直下，玻璃上的水珠也在持续更新 —— 从顶部补新珠
-    if (this.isWet) {
-      // 雷暴时生成速率翻倍（瓢泼大雨）
-      this.spawnAcc += dt * (this.isStorm ? 44 : 22);
+    // 水膜：可见度缓动到目标值，擦出的轨道慢慢回雾
+    this._fog = lerp(this._fog, this.fogTarget, 1 - Math.exp(-dt * 0.8));
+    if (wet) this._regrowFilm(dt);
+
+    /* 偏离 3d：雨点砸在玻璃上是随机落点、先挂住不动。
+       原先是从顶部生成、一生成就滑 —— 整屏水珠像一场缓慢的「雨」在飘，
+       这正是「浮在空中」的另一半原因：玻璃上的水不该有统一的运动。 */
+    if (wet) {
+      this.spawnAcc += dt * 22 * this.wetLevel;
       while (this.spawnAcc >= 1) {
         this.spawnAcc -= 1;
-        // 原样取自参考：九成细密珠，一成放大 2.8 倍
-        if (this.drops.length < MAX_DROPS) {
-          const d = this.mkDrop(rnd(0.8, 3.2) * (Math.random() > 0.90 ? 2.8 : 1), false);
-          d.y = -6;
-          // 关键：新水珠必须立刻拿到滑落速率。若 vy=vx=0，更新里会被当静态珠
-          // 直接 continue，于是永远挂在顶部，把珠池堵死。
-          this.startRun(d);
-          this.drops.push(d);
-        }
+        this._landDrop();
       }
+    }
+
+    // 空间网格：合并检测从 O(n²) 降到只看相邻格
+    const grid = this._grid;
+    grid.clear();
+    for (const d of this.drops) {
+      if (d.static) continue;
+      const k = `${Math.floor(d.x / GRID)},${Math.floor(d.y / GRID)}`;
+      const cell = grid.get(k);
+      if (cell) cell.push(d);
+      else grid.set(k, [d]);
     }
 
     for (const d of this.drops) {
       d.wob += dt * 1.6;
-      if (d.static || (!d.vy && !d.vx)) continue;
+      if (d.dead || d.static) continue;
 
-      d.y += d.vy * dt * 60;
-      d.x += (d.vx + Math.sin(d.wob) * d.wobAmp) * dt * 60;
+      // 静止珠：长到挂不住就开始滑
+      if (!d.vy) {
+        if (wet && d.r > d.hold) this.startRun(d);
+        continue;
+      }
+
+      const px = d.x;
+      const py = d.y;
+      /* 真实水珠不走正弦：它被玻璃上的污点和已有水痕拽住，走一段直线、
+         顿一下、换个角度再走。原先的 sin(wob) 摆动在短轨迹上看不出，
+         挂珠机制让水珠滑得更远之后，就成了一条条扭动的「蚯蚓」。 */
+      d.steerIn = (d.steerIn ?? rnd(0.2, 0.9)) - dt;
+      if (d.steerIn <= 0) {
+        d.steerIn = rnd(0.25, 1.1);
+        d.drift = rnd(-1, 1) * d.wobAmp * 0.45;
+        d.stall = Math.random() < 0.18 ? rnd(0.08, 0.3) : 0;
+      }
+      if (d.stall > 0) d.stall -= dt;
+      const go = d.stall > 0 ? 0.15 : 1;
+      d.y += d.vy * go * dt * 60;
+      d.x += (d.vx + (d.drift || 0)) * go * dt * 60;
       // 滑落过程中吸水变瘦
       d.squash = lerp(d.squash, 1.28, 1 - Math.exp(-dt * 1.4));
       d.r = Math.max(0.7, d.r - dt * d.r * 0.06);
@@ -492,56 +751,35 @@ export class GlassLayer {
       d.trail.push({ x: d.x, y: d.y, r: d.r });
       if (d.trail.length > d.trailMax) d.trail.shift();
 
-      // 脱离或蒸发
-      if (d.y > this.h + 24 || d.x < -30 || d.x > this.w + 30 || d.r < 0.8) {
-        // 滑出屏幕时触发涟漪
-        if (d.y > this.h + 24 && d.r > 2) this.impact(d.x, this.h - rnd(5, 20));
+      // 偏离 3c：滑过的地方水膜被擦掉
+      this.wipe(d.x, d.y, d.r * 0.9, 0.3);
 
-        if (this.isWet && Math.random() > 0.55) {
-          d.x = Math.random() * this.w;
-          d.y = -8;
-          d.r = rnd(4.5, 11);
-          d.squash = 1;
-          d.alpha = rnd(0.5, 0.85);
-          d.trail = [];
-          d.dead = false;
-          this.startRun(d);
-        } else {
-          d.dead = true;
+      // 偏离 3d：一路吞掉路径上的水珠
+      this._absorb(d, grid);
+
+      // 偏离 3d：身后留下细小残珠
+      d.travel = (d.travel || 0) + Math.hypot(d.x - px, d.y - py);
+      if (d.travel > d.nextBead) {
+        d.travel = 0;
+        d.nextBead = rnd(10, 34);
+        if (d.r > 2.2 && this.drops.length < MAX_DROPS) {
+          const b = this.mkDrop(rnd(0.6, Math.min(1.8, d.r * 0.3)), false);
+          b.x = d.x + rnd(-0.4, 0.4) * d.r;
+          b.y = d.y - d.r * 1.3;
+          b.owner = d;
+          this.drops.push(b);
+          d.r = Math.sqrt(Math.max(0.5, d.r * d.r - b.r * b.r));
         }
       }
-    }
 
-    // 水珠合并：两颗运动中的珠碰触时，小珠并入大珠（大珠半径按面积相加）
-    if (this.isWet) {
-      for (let i = 0; i < this.drops.length; i += 1) {
-        const a = this.drops[i];
-        if (a.dead || a.static || !a.vy) continue;
-        for (let j = i + 1; j < this.drops.length; j += 1) {
-          const b = this.drops[j];
-          if (b.dead || b.static || !b.vy) continue;
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          if (dx * dx + dy * dy < (a.r + b.r) * 0.7 * ((a.r + b.r) * 0.7)) {
-            const big = a.r >= b.r ? a : b;
-            const small = a.r >= b.r ? b : a;
-            big.r = Math.min(16, Math.sqrt(big.r * big.r + small.r * small.r));
-            big.vy *= 1.15;                            // 合并后加速
-            big.alpha = Math.min(0.92, big.alpha + small.alpha * 0.3);
-            small.dead = true;
-            break;                                     // 一帧只合并一次
-          }
-        }
+      // 脱离或蒸发
+      if (d.y > this.h + 24 || d.x < -30 || d.x > this.w + 30 || d.r < 0.8) {
+        d.dead = true;
       }
     }
 
     this.drops = this.drops.filter((d) => !d.dead);
 
-    for (const r of this.rings) {
-      r.r += dt * 46;
-      r.life -= dt * 1.5;
-    }
-    this.rings = this.rings.filter((r) => r.life > 0 && r.r < r.max);
   }
 
   loop(now) {
@@ -582,7 +820,7 @@ export class GlassLayer {
     const ctx = this.ctx;
     if (!ctx) return;
     ctx.clearRect(0, 0, this.w, this.h);
-    if (!this.drops.length && !this.rings.length) return;
+    if (!this.drops.length) return;
 
     const L = this.light;
     const { lum, spec, bodyLum } = this._shading();
@@ -598,9 +836,39 @@ export class GlassLayer {
     const S = this.sprites;
     ctx.globalCompositeOperation = 'source-over';
 
+    // ---- 0. 玻璃水膜（偏离 3c）：在所有水珠之下，被滑落珠擦出轨道 ----
+    if (this._fog > 0.004 && this._film) {
+      this._tintFilm();
+      ctx.globalAlpha = clamp(this._fog, 0, 1);
+      ctx.drawImage(this._film, 0, 0, this.w, this.h);
+      ctx.globalAlpha = 1;
+    }
+
+    // 折射取景：每帧一次，珠子里看到的是它身后倒过来的世界
+    const refract = this.isWet && this._captureScene();
+    const K = SCENE_SCALE;
+    const pat = refract ? ctx.createPattern(this._scene, 'no-repeat') : null;
+
     for (const d of this.drops) {
       const rx = d.r * 1.0;
       const ry = d.r * d.squash;
+
+      // ---- 0.5 折射（偏离 3a）：透镜成倒像，盖住身后原样透出来的背景 ----
+      if (refract && d.r >= REFRACT_MIN_R) {
+        /* 不用 clip：把取景画布当成图案，逐珠只改图案矩阵再填椭圆。
+           矩阵把「以珠心为中心、边长 2·fov 的取景窗」旋转 180° 压进 2.16·r 的珠内：
+             屏幕点 = 珠心 − s·(取景点 − 珠心)，s = 1.08·r / fov（纵向再除 squash）
+           取景画布是 K 倍缩小的，所以取景点 = 画布坐标 / K。 */
+        const fov = d.r * REFRACT_FOV;
+        const sx = (1.08 * rx) / fov / K;
+        const sy = (1.08 * ry) / (fov * d.squash) / K;
+        pat.setTransform(new DOMMatrix([-sx, 0, 0, -sy, d.x + sx * d.x * K, d.y + sy * d.y * K]));
+        ctx.fillStyle = pat;
+        ctx.globalAlpha = clamp(0.5 + d.alpha * 0.6, 0, 0.92);
+        ctx.beginPath();
+        ctx.ellipse(d.x + rx * 0.10, d.y + ry * 0.16, rx * 0.97, ry * 0.97, 0, 0, TAU);
+        ctx.fill();
+      }
 
       // ---- 1. 滑落水痕（先画，在水珠之下）----
       if (d.trail && d.trail.length > 2) {
@@ -644,32 +912,20 @@ export class GlassLayer {
     }
 
     ctx.globalAlpha = 1;
-
-    // ---- 8. 撞击涟漪 ----
-    for (const r of this.rings) {
-      ctx.beginPath();
-      ctx.arc(r.x, r.y, r.r, 0, TAU);
-      ctx.strokeStyle = rgbStr(L.tint, 0.16 * r.life * spec);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(r.x, r.y, r.r * 0.62, 0, TAU);
-      ctx.strokeStyle = rgbStr(L.dark, 0.07 * r.life);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
   }
 
   /** 供自动化测试与调试读取 */
   get counts() {
     const moving = this.drops.filter((d) => !d.static && (d.vy || d.vx)).length;
+    const refracting = this.isWet ? this.drops.filter((d) => d.r >= REFRACT_MIN_R).length : 0;
     const big = this.drops.filter((d) => d.r >= 5).length;
     return {
       weather: this.weather,
       drops: this.drops.length,
       moving,
       big,
-      rings: this.rings.length,
+      refracting,
+      fog: +this._fog.toFixed(3),
       sprites: this._sprites.size,
       enabled: this.drops.length > 0,
     };

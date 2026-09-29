@@ -82,6 +82,7 @@ function refresh() {
 
   const theme = applySkyTheme(hour, state.scene);
   weatherScene.setSky(theme.colors, theme.luminance);
+  glassLayer.setSky(theme.colors);   // 折射取景要知道玻璃后面的天色
 
   const darkK = clamp01((0.44 - theme.luminance) / 0.38);
   const tint = waterTint(theme.colors.bot, darkK);
@@ -109,10 +110,21 @@ function refresh() {
   return theme;
 }
 
+/* 焦点在玻璃上：降水天气里窗外世界轻微失焦。
+   人眼盯着玻璃上的水珠时，远处的雨丝和闪电本就是虚的 ——
+   前景锐、背景虚，水珠才会「贴」在玻璃上，而不是和雨丝混在同一深度。 */
+const FOCUS_BLUR = { drizzle: 0.8, rain: 1.2, thunderstorm: 1.4 };
+
+function applyFocus(key) {
+  const px = state.glassOn ? FOCUS_BLUR[key] || 0 : 0;
+  $('weatherEffects').style.filter = px ? `blur(${px}px)` : '';
+}
+
 function setScene(key) {
   state.scene = key;
   weatherScene.setWeather(key);
   glassLayer.setWeather(key);
+  applyFocus(key);
   for (const b of document.querySelectorAll('#sceneBtns button')) {
     b.classList.toggle('on', b.dataset.k === key);
   }
@@ -129,7 +141,7 @@ function tickCounter() {
   $('counter').textContent =
     `雨丝 ${c.rain} · 雪 ${c.snow} · 星 ${c.stars} · 闪电 ${c.lightning.toFixed(2)}`
     + ` · 枝干 ${c.boltBranches} · 已闪 ${c.flashCount}`
-    + `　‖　水珠 ${g.drops}（滑 ${g.moving} / 大 ${g.big}）· 涟漪 ${g.rings}`;
+    + `　‖　水珠 ${g.drops}（滑 ${g.moving} / 大 ${g.big} / 折射 ${g.refracting}）`;
   $('fps').textContent = `fps ${fps.toFixed(0)}`;
 }
 
@@ -216,6 +228,7 @@ function buildPanel() {
     state.glassOn = !state.glassOn;
     $('glassOn').classList.toggle('on', state.glassOn);
     document.getElementById('glassLayer').style.display = state.glassOn ? '' : 'none';
+    applyFocus(state.scene);   // 没有玻璃就没有对焦对象，窗外恢复清晰
   };
 
   $('hide').onclick = () => document.body.classList.toggle('panel-hidden');
@@ -248,6 +261,7 @@ const boot = () => {
   // init() 会按默认天气建种群，这里再显式设一次，确保开局就是雷暴
   weatherScene.setWeather(state.scene);
   glassLayer.setWeather(state.scene);
+  applyFocus(state.scene);
   refresh();
 
   for (const b of document.querySelectorAll('#sceneBtns button')) {

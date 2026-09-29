@@ -5,8 +5,10 @@
  * 按小时输出线性渐变；再叠一层天气调制（云层光学厚度 → 压暗 / 去饱和 / 染色），
  * 并顺带算出此刻该配深墨还是白墨（见文件后半段的墨色匹配）。
  *
- * 全部副作用只有两处：写 .sky-backdrop 的 inline background、
- * 以及给 <html> 挂 data-ink。不碰 Date.prototype、不引外部依赖。
+ * 全部副作用只有三处：写 .sky-backdrop 的 inline background、
+ * 同步 .sky-edge-top / .sky-edge-bottom 的底色（视口边缘 tint 采样源，
+ * 见 applyEdgeTint 的注释）、以及给 <html> 挂 data-ink。
+ * 不碰 Date.prototype、不引外部依赖。
  *
  * applySkyTheme 会把调制后的三层色一并返回 —— Canvas 天气场景（scene-weather.js）
  * 拿它给雨丝、雪球、闪电配色，两边的天色因此永远同源，不会各画各的。
@@ -365,7 +367,7 @@ export function sampleSkyInk(hour, weatherKey = 'clear') {
 }
 
 /**
- * 一次性应用：天空渐变 + 全页墨色
+ * 一次性应用：天空渐变 + 全页墨色 + 视口边缘 tint 条
  * 墨色通过 <html data-ink> 交给 CSS 变量接管
  * @returns {{ink:'light'|'dark', luminance:number, colors:object}}
  *   colors / luminance 同时回给 Canvas 天气场景，让粒子的配色与天空同源。
@@ -376,8 +378,28 @@ export function applySkyTheme(hour = new Date().getHours(), weatherKey = 'clear'
   const backdropEl = document.querySelector('.sky-backdrop') || document.body;
   backdropEl.style.background = generateSkyGradient(colors);
 
+  applyEdgeTint(colors);
+
   const root = document.documentElement;
   if (root.dataset.ink !== ink) root.dataset.ink = ink;
 
   return { ink, luminance, colors };
+}
+
+/**
+ * 同步两条视口边缘采样条的底色（顶部 = 天空 top 色，底部 = bot 色）。
+ *
+ * 存在的唯一理由：iOS 26 Safari 从「贴着视口边缘的 fixed 元素」的
+ * background-color 推导浏览器工具栏底色，而天空层只有 background-image
+ * （渐变）、采样不到，于是深色页面上顶着一条纯白横条。详见
+ * css/sky-gradient.css 里 .sky-edge-tint 那段注释。
+ *
+ * 只改明暗不改形态：两条带的颜色就是渐变两端的端点色，边界处差异
+ * 两三个色阶，肉眼不可见。
+ */
+function applyEdgeTint(colors) {
+  const top = document.querySelector('.sky-edge-top');
+  const bottom = document.querySelector('.sky-edge-bottom');
+  if (top) top.style.backgroundColor = rgbStr(colors.top);
+  if (bottom) bottom.style.backgroundColor = rgbStr(colors.bot);
 }
