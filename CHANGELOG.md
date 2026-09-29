@@ -3,6 +3,27 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.2] - 2026-09-29
+
+### 修复
+
+- **刷新瞬间视口上下各闪一条亮带，几秒后自行消失**：起因是「贴边渲染 tint 采样带」
+  （`.sky-edge-tint`）带了 `transition: background-color 3s`。天空层用的是
+  `linear-gradient`（即 `background-image`），而 **CSS 不对渐变做插值** —— 天色一变
+  它是一步跳到位；采样带却是纯色 `background-color`，**会**插值，于是它要花 3 秒去追
+  一个早就跳完的天空。这 3 秒里带色与身后天色相差几十个色阶，观感就是上下两条亮带，
+  追平即「消失」。天气数据回来后把天色从晴天基准切到真实天气的那一下，每次加载必现。
+  另删掉 `.sky-backdrop` 上那句 `transition: background 3s` —— 对渐变根本不生效，
+  留着反而会制造「天空硬跳、带子平滑」的反向不同步。`storm.html` 有同样两处，一并删。
+
+### 工程
+
+- `test/edge-tint.mjs` 新增 **E 段**（40 → 44 条）：主动制造跨昼夜跳变
+  （`__skyTime(14) → (1) → (14)`），以 `requestAnimationFrame` 逐帧比对待色与天空渐变
+  端点色，断言全程 ≤8 色阶；并配一条前置断言「天色确实出现过 ≥2 种端点色」，
+  避免天色恒定场景下这条断言永远为绿。原先 D 段那种稳态像素 A/B 比对拦不住它
+  （稳态下 maxΔ=2 一切正常），瞬态完全落在盲区。
+
 ## [1.0.1] - 2026-09-29
 
 ### 修复
@@ -75,5 +96,6 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[1.0.2]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.2
 [1.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.1
 [1.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.0

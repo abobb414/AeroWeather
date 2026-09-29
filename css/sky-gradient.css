@@ -6,7 +6,12 @@
   inset: 0;
   z-index: -2;
   background: linear-gradient(180deg, #b8d4e8 0%, #dce8ed 54%, #ece8df 100%);
-  transition: background 3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 🔴 这里**故意不要 transition**（2026-09-29 删掉，别加回来）。
+     background 是 linear-gradient（即 background-image），而 CSS 对渐变不做插值：
+     值一变就是「一步跳到位」。所以原先那句 transition: background 3s 让人以为天色
+     在平滑过渡，其实天空一直是硬跳的 —— 它唯一真实的效果是给下面 .sky-edge-tint
+     埋雷：那两条带是纯色 background-color（*会*插值），于是它们会花 3 秒去追一个
+     早就跳完的天空，这三秒里带色与身后的天色明显不符，就是用户看到的「亮条」。 */
   pointer-events: none;
 }
 
@@ -46,7 +51,13 @@
   height: 12px;              /* 门槛 >4px；实测 11–12px 才稳，别调小 */
   z-index: -1;               /* 压在天空渐变之上、正文之下（正文是 z auto） */
   pointer-events: none;
-  transition: background-color 3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 🔴 绝不能加 transition: background-color —— 这正是「刷新时上下两条亮带」的来源。
+     天空层是渐变（不可插值、一步跳到位），若这两条带做 3 秒过渡，就会在色变后的
+     三秒里顶着与身后天色不符的底色。实测（2026-09-29，本地加载全程逐帧采集）：
+       天空已跳到 rgb(101,121,181) 时，顶带还停在 rgb(165,192,221) —— 差 64 个色阶，
+       一路追到 t≈4.3s 才咬合，观感正是用户报的「刷新时背景上下有两条亮条，
+       过一会儿就消失了」。
+     两边必须同时跳：渐变跳，带子也跳。test/edge-tint.mjs 的 E 段逐帧守着这条。 */
 }
 
 .sky-edge-top { top: 0; background-color: #b8d4e8; }
