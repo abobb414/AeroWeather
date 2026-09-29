@@ -22,6 +22,9 @@
 
 - [核心特性](#核心特性)
 - [界面一览](#界面一览)
+  - [主看板](#主看板)
+  - [八种天气](#八种天气)
+  - [强对流实验台](#强对流实验台)
 - [技术架构](#技术架构)
   - [三层 Canvas 渲染](#三层-canvas-渲染)
   - [数据源分层](#数据源分层)
@@ -50,31 +53,84 @@
 
 ## 界面一览
 
-> 以下截图取自线上运行版本，天空时刻由内置的调试接口固定，便于稳定展示。
+> 截图全部取自线上运行版本。主看板的天空时刻由内置调试接口 `window.__skyTime(h)` 固定，
+> 天气与温度是当日真实数据；**八种天气**在[强对流实验台](https://weather.abobb.com/storm.html)
+> 上取景 —— 实验台与主站共用同一套渲染引擎（`sky-gradient` / `scene-weather` / `glass-layer`），
+> 收起面板后即为纯天气画面，是「各种天气长什么样」最直接的来源。
 
-**实时天气看板** —— 主温度、渐变刻度带、24 小时逐时与 7 天预报。
+### 主看板
 
-![实时天气看板](docs/screenshots/desktop-dashboard.jpg)
+**白天** —— 温度、六项实况指标、24 小时逐时曲线与 7 天预报（含比例温差条）。
 
-**夜间场景** —— 天空渐变、卡片透明度与文字墨色均随场景亮度实时重算。
+![主看板 · 白天](docs/screenshots/desktop-dashboard.jpg)
 
-![夜间场景](docs/screenshots/desktop-night.jpg)
+**夜间** —— 天空亮度同时驱动卡片透明度、文字墨色与水珠采光，整页随时刻协调重算。
 
-**强对流实验台** —— 雷暴场景下的雨丝与玻璃水珠层，右下角为场景控制面板。
-
-![强对流实验台 · 雷暴](docs/screenshots/storm-thunderstorm.jpg)
-
-**强对流实验台 · 雪** —— 八种场景随时切换，定格闪电单独观察分叉形态。
-
-![强对流实验台 · 雪](docs/screenshots/storm-snow.jpg)
+![主看板 · 夜间](docs/screenshots/desktop-night.jpg)
 
 <div align="center">
 
 **移动端** —— 同一套代码在 390px 视口下的自适应布局。
 
-<img src="docs/screenshots/mobile-dashboard.jpg" width="42%" alt="移动端">
+<img src="docs/screenshots/mobile-dashboard.jpg" width="34%" alt="移动端">
 
 </div>
+
+### 八种天气
+
+天空按天气调制（压暗 / 去饱和 / 染色），降水、闪电与玻璃水珠各自独立绘制。
+下面八张全部取同一时刻（19:00），便于横向比较天色差异：
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-clear.jpg" width="100%" alt="晴"><br>
+      <b>晴</b> —— 星空可见，天色最亮
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-cloudy.jpg" width="100%" alt="多云"><br>
+      <b>多云</b> —— 云量抬升，天色压暗去饱和
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-overcast.jpg" width="100%" alt="阴"><br>
+      <b>阴</b> —— 星空隐去，天色压到最沉
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-fog.jpg" width="100%" alt="雾"><br>
+      <b>雾</b> —— 霾把天色洗淡，地平线层次发灰
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-drizzle.jpg" width="100%" alt="毛毛雨"><br>
+      <b>毛毛雨</b> —— 雨丝稀疏，玻璃上水珠初起
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-rain.jpg" width="100%" alt="雨"><br>
+      <b>雨</b> —— 雨丝密集斜落，水珠活跃
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-thunderstorm.jpg" width="100%" alt="雷暴"><br>
+      <b>雷暴</b> —— 雨最密、天色最暗，分叉闪电（定格帧）
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/weather-snow.jpg" width="100%" alt="雪"><br>
+      <b>雪</b> —— 片状慢落，密度与雨相当
+    </td>
+  </tr>
+</table>
+
+### 强对流实验台
+
+独立页面 `storm.html`：八种天气 × 任意时刻自由组合，右侧面板给出场景、粒子计数与实时 fps，
+并支持跟随真实时间、暂停、**定格闪电**（暂停动画后手工渲染一帧，把分叉枝干留在画面里）
+与水珠层开关。
+
+![强对流实验台](docs/screenshots/storm-panel.jpg)
 
 ---
 
@@ -188,7 +244,7 @@ python3 -m http.server 8000
 ├── assets/
 │   ├── china-cities.json   # 全国区划库（含中心点，gzip 后 53 KB）
 │   └── *.png / *.ico       # logo（墨色遮罩）· favicon
-└── docs/screenshots/       # README 展示图（test/gh-shots.mjs 一键重生成）
+└── docs/screenshots/       # README 展示图：3 张主看板 + 八种天气 + 1 张实验台面板
 ```
 
 ---
@@ -205,4 +261,4 @@ python3 -m http.server 8000
 
 ## 更新日志
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v1.0.0**（2026-09-29，第一个正式版）。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v1.0.2**（2026-09-29）。
