@@ -144,8 +144,10 @@
 
 </div>
 
-<!-- 玻璃面水珠：压在内容之下的那层是「窗外」，这层是「镜头前方」——
-     雨珠糊在玻璃上、就在眼前，所以要在内容之上、且保持锐利（js/glass-layer.js）。 -->
+<!-- 玻璃面水珠（图层 ②，z-index 40）：压在内容之下的是「窗外」，这层是「镜头前方」——
+     雨珠糊在玻璃上、就在眼前，保持锐利（js/glass-layer.js）。
+     正文/logo/搜索框整体在它之上（z-index 50），所以水珠只糊在字与字的空处，
+     不糊笔画；两层都是透明底，水珠照旧满屏可见。 -->
 <canvas class="glass-layer" id="glassLayer" aria-hidden="true"></canvas>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>

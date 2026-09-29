@@ -369,10 +369,47 @@ export class GlassLayer {
     this._raf = requestAnimationFrame(this.loop);
   }
 
+  /**
+   * 重排画布尺寸。
+   *
+   * 🔴 高度一律「只增不减」，且**只有宽度变化才重新播种水珠**。
+   *
+   * 原因（2026-09-29 手机端反馈「滚动时水珠不停刷新」，桌面完全复现不出）：
+   * iOS / Android 滚动时收放地址栏与工具栏，`window.innerHeight`（视觉视口）
+   * 会在 ~100px 上下反复跳，每一次都触发 resize。而本层是
+   * `position: fixed; inset: 0`，盒子跟的是**布局视口**（iOS 上恒定），
+   * 本来根本不需要动。早先这里照单全收地 `this.h = innerHeight` + `build()`，
+   * 于是手机上每滚一下就换一批水珠 —— 观感正是「水珠跟着滚动不停刷新」。
+   * 桌面没有工具栏收放，整个生命周期只 resize 一两次，所以永远看不到。
+   *
+   * 现在的判据：
+   *   宽度变了（含横竖屏）= 真·换布局 → 重建，按新 w×h 重新播种；
+   *   高度只是变大（工具栏收起、可见区变高）→ 扩画布，已有水珠按比例平移，一颗不重播；
+   *   高度变小（工具栏展开）→ 直接返回，画布比视口高一点没有任何副作用。
+   */
   resize() {
     if (!this.canvas || !this.ctx) return;
-    this.w = window.innerWidth;
-    this.h = window.innerHeight;
+
+    const first = !this.w;
+    const w = Math.round(window.innerWidth);
+    const widthChanged = w !== this.w;
+
+    // 视觉视口高：随工具栏收展跳的那一个
+    const liveH = Math.round(Math.max(
+      window.innerHeight,
+      window.visualViewport ? window.visualViewport.height : 0,
+    ));
+    // 布局盒高：fixed 元素的盒子 = 布局视口（iOS 上恒定，工具栏收起也盖得住）
+    // 唯一例外是刚转完屏 —— 那一刻读到的还是旧朝向的高度，必须弃用
+    const boxH = !widthChanged ? (this.canvas.clientHeight || 0) : 0;
+    const nextH = Math.max(liveH, Math.round(boxH), widthChanged ? 0 : this.h);
+
+    // 纯粹的工具栏抖动：什么都不做，水珠原地不动
+    if (!widthChanged && nextH === this.h) return;
+
+    const prevH = this.h;
+    this.w = w;
+    this.h = nextH;
     // 这层是锐利的近景，跟着设备像素比走
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.round(this.w * this.dpr);
@@ -398,7 +435,19 @@ export class GlassLayer {
     this._filmCtx = this._film.getContext('2d');
     this._filmTint = '';
 
-    this.build();
+    // 🔴 判据只有「换布局」两种：首次初始化 / 宽度变化（含横竖屏）。
+    // 别加 `!this.drops.length` 这类兜底 —— 它会让「雨刚停、珠子被吸收掉」的
+    // 那一刻在 resize 里被重新播种，等于给这条 bug 留后门。
+    if (widthChanged || first) {
+      this.build();
+    } else if (prevH > 0) {
+      // 只长高：把已有水珠按比例下移，位置是连续的 —— 不是换一批新珠子。
+      // （用户要的是「滚动时水珠别刷新」，所以这里绝不能再调 build()。）
+      const k = this.h / prevH;
+      for (const d of this.drops) d.y *= k;
+      // 改画布宽高会清空水膜，湿地得重铺回来（同一张 repeat 图案，视觉无变化）
+      if (this.isWet) this.resetFilm();
+    }
     this.render();
   }
 

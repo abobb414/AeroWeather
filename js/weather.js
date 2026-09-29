@@ -642,6 +642,12 @@ window.__sunAnchors = (rise, set) => {
   return updateSkyGradient();
 };
 
+/* 调试 / 自动化测试入口：暴露两层画布引擎，便于断言
+   「尺寸抖动不重播水珠」「图层序」这类机制（test/layers.mjs 在用）。
+   与 storm.js 的暴露方式保持一致。 */
+window.__glassLayer = glassLayer;
+window.__sceneWeather = weatherScene;
+
 // 自动获取位置权限并加载天气
 function autoLoadLocation() {
   if (!navigator.geolocation) {

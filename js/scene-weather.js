@@ -177,10 +177,35 @@ class WeatherScene {
     this._raf = requestAnimationFrame(this.loop);
   }
 
+  /**
+   * 重排画布尺寸。
+   *
+   * 与 glass-layer.js 的 resize() 同一套判据，别改回「照单全收」：
+   * 移动端滚动收放工具栏会让 `window.innerHeight` 反复跳、连带狂发 resize，
+   * 而本层是 fixed；若每次都重建粒子，手机上滚一下雨丝/雪片就重播一次
+   * （桌面没有工具栏收展，看不出来）。
+   *
+   * 所以：宽度变了（含横竖屏）才重建静态层与粒子；高度只增不减，
+   * 单纯长高时一个粒子都不动（背景粒子分布本来就跟视口高度无关）。
+   */
   resize() {
     if (!this.canvas || !this.ctx) return;
-    this.w = window.innerWidth;
-    this.h = window.innerHeight;
+
+    const first = !this.w;
+    const w = Math.round(window.innerWidth);
+    const widthChanged = w !== this.w;
+
+    const liveH = Math.round(Math.max(
+      window.innerHeight,
+      window.visualViewport ? window.visualViewport.height : 0,
+    ));
+    const boxH = !widthChanged ? (this.canvas.clientHeight || 0) : 0;
+    const nextH = Math.max(liveH, Math.round(boxH), widthChanged ? 0 : this.h);
+
+    if (!widthChanged && nextH === this.h) return;   // 工具栏抖动：不重建
+
+    this.w = w;
+    this.h = nextH;
     // 这层没有 backdrop-filter 兜着，不做 DPR 折扣 —— 折扣会让雨丝发虚。
     // 代价由「精灵化 + globalAlpha 批处理」抵回来。
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -190,8 +215,13 @@ class WeatherScene {
     this.canvas.style.height = `${this.h}px`;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
-    this.buildStatic();
-    this.buildParticles();
+    // 只有换布局（首次 / 宽度变化 / 横竖屏）才重建；晴天本就没有粒子，
+    // 别用 `streaks.length` 之类「看起来空」的判据当条件，那会让晴夜的星点
+    // 在每次高度变化时被重播一遍。
+    if (widthChanged || first) {
+      this.buildStatic();
+      this.buildParticles();
+    }
     // 改写 canvas 宽高会整体清空位图，而移动端滚动中收放工具栏会连续触发
     // resize。立即同步重绘一帧，把「清空态」窗口压到 0。
     this.render();

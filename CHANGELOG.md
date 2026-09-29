@@ -3,6 +3,32 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2026-09-29
+
+### 修复
+
+- **移动端滚动时玻璃水珠 / 窗外粒子反复刷新**：`glass-layer.js` 与 `scene-weather.js`
+  的 `resize()` 原先照单全收 `window.innerHeight`（视觉视口）并每次都重新播种粒子。
+  移动端滚动收放地址栏与工具栏时该值会在约 100px 区间反复跳动、连带狂发 resize，
+  于是「滚一下换一批水珠」；桌面没有工具栏收展，复现不出来。
+  现在高度**只增不减**，且**只有宽度变化（含横竖屏）才重建** —— 单纯长高时按比例平移
+  已有水珠并补铺水膜，一颗不重播。
+
+### 变更
+
+- **图层序调整**：正文与 logo 整块浮到玻璃水珠之上（`.sheet` / `.brand-bar`
+  `z-index: 50` > 水珠 `40`）。此前水珠压在报告正文与站名字标上，笔画发虚；
+  现在水珠只糊在字与字的空处，可读性优先。两层均为透明底，水珠照旧满屏可见。
+  搜索框随 `.sheet` 一并浮起，下拉结果不再被水珠遮挡。
+
+### 工程
+
+- 新增 `test/layers.mjs`（33 条断言）：图层序（含沿祖先链检查层叠上下文）、
+  视口抖动下游珠与窗外粒子身份不变、反向断言「宽度变化必须重建」；
+  图层序另有一条不读 `z-index` 的端到端像素判据（把玻璃层刷成品红后量文字墨色占比）。
+- `weather.js` 暴露 `window.__glassLayer` / `window.__sceneWeather` 调试句柄，
+  与 `storm.js` 的暴露方式对齐，便于自动化断言。
+
 ## [1.0.0] - 2026-09-29
 
 第一个正式版。零构建、无依赖的纯静态天气看板：彩云天气驱动，三层 Canvas 视觉体系，
@@ -42,4 +68,5 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[1.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.1
 [1.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.0
