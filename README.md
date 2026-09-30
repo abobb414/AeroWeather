@@ -139,13 +139,14 @@
 ```mermaid
 flowchart LR
     A["weather.js<br/>状态管理 · 渲染 · 墨色自适应"] --> B["api.js<br/>串行队列 · 退避重试 · 分层缓存"]
-    B -->|"JSONP · 绕开 CORS"| C["彩云天气<br/>主数据源"]
+    B -->|"本地：JSONP 直连<br/>线上：同源代理"| C["彩云天气<br/>主数据源"]
     B -->|"fetch · 补足与兜底"| D["Open-Meteo<br/>补足源"]
     B <--> E[("localStorage<br/>10 分钟新鲜 / 6 小时兜底")]
     A --> F["sky-gradient.js<br/>动态天空 · 日出日落锚点"]
     A --> G["scene-weather.js<br/>Canvas 窗外世界"]
     A --> H["glass-layer.js<br/>Canvas 玻璃水珠"]
     A --> I["china-cities.js<br/>本地行政区划库"]
+    J["api/caiyun.js<br/>Vercel Function · 只服务端持有 Token"] -.->|"转发"| C
 ```
 
 整套前端由**原生 ES Module** 组成，不使用任何框架与打包工具，仓库根目录即部署产物。
@@ -169,7 +170,9 @@ flowchart LR
 | 主源 | **彩云天气 Caiyun** | 实时天气、24 小时逐时、空气质量（PM2.5 / PM10 / 国标 AQI）、一句话预报、未来 3 天与日出日落 |
 | 补足源 | **Open-Meteo** | 补齐彩云试用版只给 3 天的第 4~7 天日预报；紫外线指数**一律以本源为准** |
 
-彩云接口不带 CORS 头，走官方 **JSONP 形态**直连（无需后端）；串行队列 + 指数退避应对 429 限流，10 分钟新鲜缓存 + 6 小时兜底缓存。数据链路有 6 秒总预算，超时立即整体切换 Open-Meteo，页脚始终标注本次实际使用的数据源。
+彩云接口不带 CORS 头：**本地开发**走官方 **JSONP 形态**直连；**线上**则经同源的 Serverless 代理 `api/caiyun.js` 转发 —— 纯静态站藏不住密钥，Token 只存在部署平台的环境变量里（`CAIYUN_TOKEN`），静态文件里一个字节都没有。代理对请求路径设有白名单，不会变成开放代理。
+
+串行队列 + 指数退避应对 429 限流，10 分钟新鲜缓存 + 6 小时兜底缓存。数据链路有 6 秒总预算，超时立即整体切换 Open-Meteo，页脚始终标注本次实际使用的数据源。
 
 ### 城市检索：本地优先 + 在线兜底
 
@@ -183,7 +186,7 @@ flowchart LR
 本项目是**零构建的纯静态站点** —— 不需要 `npm install`、不需要打包工具，任何静态服务器都能直接跑。
 
 ```bash
-# 1) 配置彩云 Token（可选；不配则自动走 Open-Meteo 兜底）
+# 1) 配置彩云 Token（可选 · 只影响本地开发；线上走环境变量，见「部署」）
 cp js/config.example.js js/config.local.js
 # 然后编辑 js/config.local.js，把 YOUR_CAIYUN_TOKEN 换成自己的 Token
 # 申请入口：https://dashboard.caiyunapp.com/
@@ -196,7 +199,7 @@ python3 -m http.server 8000
 
 > **两点注意**
 > 1. **必须走 http（或 https）访问，不要用 `file://` 直接打开** —— 项目用 ES Module，`file://` 协议下会被 CORS 拦下。
-> 2. `js/config.local.js` 已在 `.gitignore` 中，**不会入库**。仓库只提供模板 `js/config.example.js`；不配 Token 时页面自动降级到 Open-Meteo 免 Key 数据源，功能不受影响。
+> 2. `js/config.local.js` 已在 `.gitignore` 与 `.vercelignore` 中，**既不入库也不进部署**。仓库只提供模板 `js/config.example.js`；不配 Token 时页面自动降级到 Open-Meteo 免 Key 数据源，功能不受影响。
 
 另有一个独立实验台页面 [storm.html](https://weather.abobb.com/storm.html)：8 种天气场景 × 任意时刻自由组合，支持定格闪电与水珠层开关，用于单独调校强对流视觉效果。
 
@@ -204,7 +207,7 @@ python3 -m http.server 8000
 
 ## 部署
 
-纯静态产物，Vercel / Cloudflare Pages / GitHub Pages 均可直接托管，**无需任何后端或代理**：
+纯静态产物，Vercel / Cloudflare Pages / GitHub Pages 均可直接托管。除彩云数据源外**无需任何后端**；要在线上使用彩云，则需一个转发小函数（见下）：
 
 | 平台 | 配置 |
 |---|---|
@@ -212,12 +215,19 @@ python3 -m http.server 8000
 | **Cloudflare Pages** | 构建命令留空，输出目录填 `/` |
 | **GitHub Pages** | Settings → Pages → Source 选分支根目录 |
 
-> ⚠️ **使用 Git 集成自动部署时需注意 Token**：`js/config.local.js` 不在仓库中，平台从 GitHub 拉取代码构建时不会有这个文件。两种解法：
-> 1. 手动部署本地目录，把配置好 Token 的 `config.local.js` 一并上传；
-> 2. 在平台注入环境变量，并在构建命令中生成该文件：
->    ```bash
->    printf 'window.__CAIYUN_TOKEN__ = "%s";\n' "$CAIYUN_TOKEN" > js/config.local.js
->    ```
+> **线上彩云数据源怎么配？**
+>
+> `js/config.local.js` 不在仓库中，平台从 GitHub 拉取构建时不会有这个文件 —— 这**正是想要的结果**。纯静态站里任何文件都是公网可下载的，把 Token 放进去等于公开它（本项目就曾因此裸奔三天）。
+>
+> 线上改用同源代理 `api/caiyun.js`：Vercel 会自动把根目录 `api/` 下的文件编译成 Serverless Function，Token 存在环境变量里，静态文件里一个字节都没有。
+>
+> ```bash
+> vercel env add CAIYUN_TOKEN production   # 粘贴 Token，之后重新部署生效
+> ```
+>
+> 前端只跟同源 `/api/caiyun` 说话，公网拿不到 Token；以后换 Token 也只改环境变量，不碰代码。其他平台（Cloudflare Workers / Pages Functions）把那 40 行转发逻辑搬过去即可 —— 但**别退回**「把 Token 写进静态文件」的老路。
+>
+> 不配也能跑：页面自动降级到 Open-Meteo 免 Key 数据源，页脚会如实标注本次实际使用的源。
 
 ---
 
@@ -227,12 +237,14 @@ python3 -m http.server 8000
 ├── weather.html            # 主页面
 ├── storm.html              # 强对流实验台（独立页面，不依赖任何数据源）
 ├── vercel.json             # 根路径 rewrite → weather.html
+├── api/
+│   └── caiyun.js           # 彩云代理：Token 存部署平台环境变量，静态文件里没有
 ├── css/
 │   ├── weather.css         # 毛玻璃组件体系 · 墨色变量
 │   └── sky-gradient.css    # 天空层样式
 ├── js/
 │   ├── weather.js          # 状态管理 · 渲染 · 墨色自适应
-│   ├── api.js              # 数据源分层 · JSONP · 缓存
+│   ├── api.js              # 数据源分层 · 彩云双通道 · 缓存
 │   ├── sky-gradient.js     # 天空渐变 · 日出日落锚点
 │   ├── scene-weather.js    # Canvas 窗外世界（雨雪/闪电/雾霾）
 │   ├── glass-layer.js      # Canvas 玻璃水珠（六层精灵化）
@@ -252,7 +264,7 @@ python3 -m http.server 8000
 
 ## 实现要点
 
-- **JSONP 直连**：彩云接口无 CORS 头，动态注入 `<script>` 绕开同源策略，串行队列保证任意时刻只有一个在途请求。
+- **彩云双通道**：接口无 CORS 头 —— 本地开发用 JSONP（动态注入 `<script>` 绕开同源策略），线上经同源 Serverless 代理转发、Token 只存环境变量。串行队列保证任意时刻只有一个在途请求。
 - **日出日落锚点**：天空的分段边界在运行时按 `report.sun` 动态重排，未注入时回落内置默认值，两态互不干扰。
 - **水珠精灵化**：六层不透明度拆成「全屏统一量 × 逐珠量」，前者烘进 24 枚离屏精灵、后者交给 `globalAlpha`，一帧一次 `drawImage` 每珠。
 - **闪电状态机**：闪电是逐帧状态（无定时器句柄），分叉用递归生成、三层描边（蓝紫辉光 → 白锐核心 → 紫色余辉），天然无泄漏。

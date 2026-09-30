@@ -3,6 +3,43 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.4] - 2026-09-30
+
+### 新增
+
+- **彩云天气改由服务端代理取数，Token 不再进入任何静态文件。**
+
+  本站是纯静态站：任何进部署目录的文件都是公网可 `curl` 下载的。`js/config.local.js`
+  里的真 Token 曾因此在公网裸奔三天（2026-09-29 核对部署时才发现，自首次发版起一直如此）。
+  当时把它加进了 `.vercelignore` 止血，代价是**线上再也拿不到 Token** ——
+  `HAS_CAIYUN` 恒为 false，连请求都不发，页脚如实写着 Open-Meteo。这是必然结果，不是故障。
+
+  现在新增 `api/caiyun.js`（Vercel Serverless Function）承接这条链路：
+
+  | 场景 | 取数通道 | Token 位置 |
+  |---|---|---|
+  | 本地开发 | JSONP 直连彩云 | `js/config.local.js`（不入库、不部署） |
+  | 线上 | 同源 `/api/caiyun` 代理 | Vercel 环境变量 `CAIYUN_TOKEN`（Encrypted） |
+
+  于是彩云特有的**国标 AQI** 与**一句话预报**重新回到线上，而公网拿不到 Token。
+
+### 工程
+
+- 代理的四条硬约束，缺一条都是事故：
+  1. `?p=` 只放行锚定正则匹配的彩云坐标路径（`/经度,纬度/(weather|realtime|forecast).json`），
+     否则它是一台「拿本项目额度给全网打工」的开放代理，同时是 SSRF 入口；
+  2. 未配置 Token 时明确返回 503 并说明原因，**不写兜底值假装成功**；
+  3. **失败响应一律 `no-store`**，成功才下 `s-maxage=300` —— 否则一次 429 会被 CDN
+     放大成整段 TTL 的持续不可用；上游状态码与 body 原样透传，退避逻辑留给前端；
+  4. `/api/caiyun?health=1` 探活端点，让前端在发业务请求前就知道通道通不通。
+- 前端 `fetch` **不要**加 `cache: 'no-store'` —— 它会让浏览器带上 `Cache-Control: no-cache`
+  请求头，把上面那条 CDN 缓存整个绕过（`curl` 侧看着 MISS→HIT 一切正常，浏览器请求却永远回源，
+  等于白设）。响应头只有 `s-maxage` 没有 `max-age`，浏览器本来就不缓存，拿掉无副作用。
+- 换 Token 从此只动环境变量，不碰代码：
+  `vercel env rm CAIYUN_TOKEN production` → `printf '%s' "$T" | vercel env add CAIYUN_TOKEN production`
+  → 重新部署。
+- `js/config.example.js` 重写为「只给本地开发用」，并说明线上走环境变量。
+
 ## [1.0.3] - 2026-09-30
 
 ### 变更

@@ -92,6 +92,8 @@ export const POPULAR_CITIES = REGIONAL_CITIES_NAV.flatMap(r => r.cities);
  *    实测 `TypeError: Failed to fetch`。官方对所有端点额外提供 JSONP 形态：
  *    把末尾改成 `weather.json` / `realtime.json` 并追加 `?callback=fn`，
  *    返回 `fn({...})`。因为它不是 fetch，浏览器不做跨域校验，可直接用。
+ *    ⚠️ 这条只对**本地开发**（浏览器里揣着真 Token）成立；线上走同源代理，
+ *    是普通 fetch，不再需要 JSONP。见 CAIYUN_PROXY_BASE。
  *
  * ② 试用版 Token 限流很紧。逐日只给 3 天（请求 dailysteps=7 也只回 3 天），
  *    逐时 24 小时；连发 6 次实测只成功 1~3 次，超限返回
@@ -99,10 +101,11 @@ export const POPULAR_CITIES = REGIONAL_CITIES_NAV.flatMap(r => r.cities);
  *    因此这里强制「串行队列 + 429 指数退避 + 10 分钟本地缓存」，
  *    任何一步都不能改回并发。
  *
- * Token 不写死在这里。取值顺序：
- *   ① `js/config.local.js` 注入的 `window.__CAIYUN_TOKEN__`（**该文件不入库**，
- *      见 README「本地运行」；仓库里只提供 config.example.js 模板）；
- *   ② 都没有时落到下面的占位符，页面会提示未配置。
+ * Token 不写死在这里。两条通道：
+ *   ① 本地开发：`js/config.local.js` 注入 `window.__CAIYUN_TOKEN__`
+ *      （**该文件不入库、也不进部署**，见 README「本地运行」）；
+ *   ② 线上：服务端代理 `api/caiyun.js` 从 Vercel 环境变量 `CAIYUN_TOKEN` 取，
+ *      前端只跟同源 `/api/caiyun` 说话，静态文件里没有任何密钥。
  * Token 申请：https://dashboard.caiyunapp.com/
  */
 const FALLBACK_CAIYUN_TOKEN = 'YOUR_CAIYUN_TOKEN';
@@ -115,6 +118,22 @@ export const hasCaiyunToken = () =>
   Boolean(CAIYUN_TOKEN) && CAIYUN_TOKEN !== FALLBACK_CAIYUN_TOKEN;
 
 const CAIYUN_BASE = 'https://api.caiyunapp.com/v2.6';
+
+/**
+ * 线上通道：同源 Serverless 代理（`api/caiyun.js`，Token 存 Vercel 环境变量）。
+ *
+ * 为什么要有它：本站是纯静态站，任何进部署目录的文件都是公网可下载的。
+ * `js/config.local.js` 里的真 Token 曾因此在公网裸奔（2026-09-29 发现，
+ * 自 09-27 首次发版起），修法是 `.vercelignore` 排除该文件 —— 代价就是
+ * 线上再也拿不到 Token，只能回落 Open-Meteo，页脚如实写着 Open-Meteo。
+ *
+ * 所以取数分两条通道，各走各的：
+ *   ① 本地开发（有 config.local.js）→ JSONP 直连彩云，行为与历史完全一致；
+ *   ② 线上（无本地 Token）→ 同源代理，Token 只在服务端出现。
+ * 两者都不通就交给 Open-Meteo 兜底，页脚照实标注，绝不假装。
+ */
+const CAIYUN_PROXY_BASE = '/api/caiyun';
+
 const CAIYUN_CACHE_KEY = 'aeroweather_caiyun_cache_v1';
 
 /**
@@ -209,18 +228,75 @@ function caiyunJsonp(pathAndQuery, timeout = 12000) {
   });
 }
 
+// ---- 线上通道：同源代理 ----
+
+/** 探活结果缓存：一次页面加载内只问一次（本地 404 与线上 200 都会立刻返回） */
+let caiyunProxyReady = null;
+
+/**
+ * 问一句「线上代理通道通不通」。
+ * 本地 `python -m http.server` 没有 `/api` 路由，这里会稳稳拿 404 → false；
+ * Vercel 上则由 Serverless Function 接管，能同时告诉我们服务端有没有配 Token。
+ * 探活只为「省掉一次必然失败的彩云请求」，失败一律当作通道不可用，不抛异常。
+ */
+async function probeCaiyunProxy() {
+  if (caiyunProxyReady !== null) return caiyunProxyReady;
+  try {
+    const res = await fetch(`${CAIYUN_PROXY_BASE}?health=1`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const info = res.ok ? await res.json() : null;
+    caiyunProxyReady = Boolean(info && info.ok && info.hasToken);
+  } catch {
+    caiyunProxyReady = false;
+  }
+  return caiyunProxyReady;
+}
+
+/**
+ * 经代理取数。同源请求没有跨域问题，所以拿的是普通 JSON，不需要 JSONP。
+ * 上游的业务错误（含限流）由代理原样透传，这里只负责把响应变成对象，
+ * 语义判断仍归 caiyunRequest 那套统一逻辑。
+ *
+ * 🔴 这里**不要**加 `cache: 'no-store'`。它会让浏览器带上 `Cache-Control: no-cache`
+ *    请求头，把代理那条 `s-maxage=300` 的 CDN 缓存整个绕过去 —— 每次刷新都回源，
+ *    白白烧掉试用版那点配额。浏览器不会缓存这份响应（响应头只有 `s-maxage`，
+ *    没有 `max-age`），所以拿掉它不会引入「页面显示旧数据」的问题。
+ */
+async function caiyunViaProxy(pathAndQuery, timeout = 12000) {
+  const res = await fetch(
+    `${CAIYUN_PROXY_BASE}?p=${encodeURIComponent(pathAndQuery)}`,
+    { signal: AbortSignal.timeout(timeout) },
+  );
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+  if (!payload) throw new Error(`彩云代理返回非 JSON（HTTP ${res.status}）`);
+  return payload;
+}
+
+/** 按通道取数：本地有真 Token 就直连，否则走代理。两者都不通时由调用方降级。 */
+function caiyunFetch(pathAndQuery) {
+  return hasCaiyunToken() ? caiyunJsonp(pathAndQuery) : caiyunViaProxy(pathAndQuery);
+}
+
 // 串行队列：限流窗口很窄，并发只会互相挤掉配额
 let caiyunChain = Promise.resolve();
 
 /** 发起一次彩云请求（自动串行 + 限流退避重试） */
 function caiyunRequest(pathAndQuery) {
-  // Token 没配就直接报清楚原因，别让用户对着 JSONP 的 404 猜
-  if (!hasCaiyunToken()) {
-    return Promise.reject(new Error(
-      '未配置彩云 Token：请复制 js/config.example.js 为 js/config.local.js 并填入自己的 Token'
-    ));
-  }
   const run = async () => {
+    // 两条通道都不通时给一句明确原因，别让用户对着 404 猜。
+    // （本地看 config.local.js，线上看部署有没有 CAIYUN_TOKEN）
+    if (!hasCaiyunToken() && !(await probeCaiyunProxy())) {
+      throw new Error(
+        '彩云通道不可用：本地请复制 js/config.example.js 为 js/config.local.js 并填入 Token；'
+        + '线上请为部署配置 CAIYUN_TOKEN 环境变量'
+      );
+    }
     let lastErr = null;
     // 网络类错误（不可达 / 超时）单独计数：兜底源是即时的，让用户多盯几秒空白页
     // 只为重试一个可能根本不存在的网络抖动并不划算，所以只给一次机会。
@@ -230,7 +306,7 @@ function caiyunRequest(pathAndQuery) {
     for (let attempt = 0; attempt <= CAIYUN_MAX_RETRY; attempt++) {
       let payload;
       try {
-        payload = await caiyunJsonp(pathAndQuery);
+        payload = await caiyunFetch(pathAndQuery);
       } catch (netErr) {
         lastErr = netErr;
         if (netRetry++ < 1) {
@@ -701,7 +777,9 @@ export async function getCompleteWeatherReport(cityObj) {
   const { lat, lon } = cityObj;
   const failures = [];
 
-  if (hasCaiyunToken()) {
+  // 「彩云通道可用」= 本地有真 Token（JSONP 直连）**或** 线上有同源代理。
+  // 后者只能异步探活，所以这里不能写成同步的 hasCaiyunToken()。
+  if (hasCaiyunToken() || await probeCaiyunProxy()) {
     try {
       const { data, cached, stale } = await withDeadline(
         fetchCaiyunWeather(lat, lon), CAIYUN_DEADLINE_MS, '彩云取数',
@@ -733,7 +811,7 @@ export async function getCompleteWeatherReport(cityObj) {
       failures.push('彩云 ' + ((err && err.message) || '未知错误'));
     }
   } else {
-    failures.push('彩云 未配置 Token');
+    failures.push('彩云 通道未配置');
   }
 
   try {
