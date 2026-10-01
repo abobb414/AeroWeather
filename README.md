@@ -2,6 +2,11 @@
 
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-white.png" />
+  <img src="./docs/images/logo.png" alt="AeroWeather" width="124" />
+</picture>
+
 # AeroWeather
 
 **彩云天气数据驱动的天气看板 · 零构建 / 零依赖的纯静态站点**
