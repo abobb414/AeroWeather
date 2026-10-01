@@ -2,6 +2,11 @@
 
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/images/logo-white.png" />
+  <img src="./docs/images/logo.png" alt="AeroWeather" width="124" />
+</picture>
+
 # AeroWeather
 
 **A weather dashboard driven by Caiyun weather data · Zero build / zero dependency, pure static site**
