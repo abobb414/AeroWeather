@@ -145,6 +145,10 @@ function updateSkyGradient() {
   weatherScene.setSky(theme.colors, theme.luminance);
   glassLayer.setSky(theme.colors);   // 折射取景要知道玻璃后面的天色
 
+  // 太阳位置（日晕）与天空渐变用同一个钟：模拟时刻时一起跳
+  weatherScene.setClock(simulatedHour);
+  glassLayer.setWindAngle(weatherScene.windField.targetLean);
+
   // 水珠的六层高光全部由环境光染色，环境光跟着天色走。
   // dark 也抬一个下限：浸润圈、透镜中段、珠体边缘全靠它压出轮廓，
   // 纯黑在深色天空上完全看不出边界。
@@ -221,6 +225,10 @@ function renderReport(report) {
   ui.range.textContent = hi !== null && lo !== null ? `↑ ${hi}°   ↓ ${lo}°` : ' ';
 
   renderFacts(cur, day0);
+
+  // 日晕要知道太阳在哪（坐标），雨丝要知道往哪边斜（风速风向）
+  weatherScene.setLocation(Number(city?.lat), Number(city?.lon));
+  weatherScene.setWind(Number(cur.wind_speed_10m), Number(cur.wind_direction_10m));
 
   // 应用天气效果（内部会连带把天空与墨色按新天气刷新一遍）
   applyWeatherEffects(cur.weather_code);

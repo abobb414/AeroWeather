@@ -9,3 +9,12 @@ docs
 # 注意 .gitignore 对 Vercel 无效（那行 `js/config.local.js` 管不到部署），
 # 必须在这里再排除一次 —— 漏掉的后果是 Token 在公网裸奔。
 **/config.local.js
+
+# 文档与内部工作记录只给 GitHub 看，不进站点。
+# 线上这些 .md 一直是 404，加上这行是为了保持原样：
+# 否则 README / CHANGELOG / *_SUMMARY.md 会突然出现在站点根目录。
+*.md
+
+# 🔴 vercel link 会生成 .env.local（内含 VERCEL_OIDC_TOKEN）。
+# 同 config.local.js 的道理：.gitignore 里那行 `.env*` 管不到部署，这里必须再排一次。
+.env*

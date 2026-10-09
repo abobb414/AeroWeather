@@ -56,6 +56,9 @@
 
   --toast-bg:   rgba(255, 255, 255, 0.94);
   --toast-fg:   #101a24;
+
+  /* 闪电边缘高光：由 js/atmospheric-effects.js 注入 */
+  --lightning-rim: 0;
 }
 
 /* ---- 墨色：浅色天空（早晨 / 正午 / 下午）---- */
@@ -263,6 +266,22 @@ p, dl, dd, dt { margin: 0; }
   box-shadow: 0 1px 2px var(--shadow), 0 14px 30px -22px var(--shadow);
   transition: color 1.1s ease, background-color .22s ease,
               border-color .22s ease, box-shadow .22s ease;
+}
+
+/* 闪电边缘高光：背景画布打闪的几十毫秒里，玻璃件的顶边被同一道冷白光擦亮。
+   --lightning-rim（0~1）由 js/atmospheric-effects.js 写入，只在值变化时写。
+   用伪元素 + inset 阴影，不动 border-color：原有的 .22s 边框过渡会把一闪拖成慢慢亮起。 */
+.search-field { position: relative; }   /* .results 本身已是 absolute */
+.search-field::after, .results::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 rgba(226, 238, 255, 0.9), 0 -1px 10px -2px rgba(210, 228, 255, 0.55);
+  -webkit-mask: linear-gradient(#000, transparent 55%);
+          mask: linear-gradient(#000, transparent 55%);
+  opacity: var(--lightning-rim, 0);
 }
 
 .search-field:hover { background: var(--glass-hover); }

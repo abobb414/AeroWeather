@@ -10,7 +10,7 @@
  * 而这四件事恰好是「像真的」和「像贴纸」的分界。
  *
  * 层序（canvas 是 z-index:-1 的透明覆盖层，天空渐变由 .sky-backdrop 在更下层）：
- *   地平线暖光带 → 星空 → 雾霾 → 雨 / 雪 → 闪电照亮 → 闪电枝干
+ *   地平线暖光带 → 环境光晕 → 丁达尔光 → 星空 → 雾霾 → 雨/雪 → 闪电 → 流星
  *
  * 性能上有三处刻意偏离参考实现的改动：
  *   1. 雪球 / 散景球预渲染成离屏精灵，逐帧只做 drawImage。
@@ -21,7 +21,21 @@
  *   3. 闪电不用任何定时器，改成逐帧状态机。DOM 版本曾有「切走天气后旧定时器
  *      继续闪、每切一次多留一个」的泄漏；换成状态机后这个 bug 在结构上不可能
  *      再出现 —— 没有可泄漏的句柄。
+ *
+ * 2026-10-09 大气光学（见 atmospheric-effects.js）：
+ *   - 日晕：按真实太阳高度角出现在太阳方位上（晴 / 多云）
+ *   - 晴夜流星：45~90 秒一颗
+ *   - 风场：雨丝的倾斜方向与运动方向一致，都由真实风速风向决定
+ *   - 闪电：同步 CSS 变量 --lightning-rim，前景卡片顶边微闪
  */
+
+import { getSunPosition } from './sun-position.js';
+import {
+  SunHalo,
+  ShootingStars,
+  WindField,
+  LightningRimFlash,
+} from './atmospheric-effects.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
@@ -123,6 +137,19 @@ class WeatherScene {
     this.nextStrike = 0;
     this.reflashIn = 0;
     this.flashCount = 0;
+
+    // 大气光学 / 风场
+    this.sunHalo = new SunHalo();
+    this.shootingStars = new ShootingStars();
+    this.windField = new WindField();
+    this.lightningRim = new LightningRimFlash();
+
+    // 地理坐标（默认北京，由 weather.js 注入真实坐标）
+    this.lat = 39.9;
+    this.lon = 116.4;
+    this.sun = null;          // 当前太阳 { azimuth, altitude }
+    this.clockHour = null;    // 模拟时刻（null = 真实时间），与天空渐变同一个钟
+    this.clockTz = null;      // 模拟时刻所在时区（小时），null = 浏览器时区
 
     this.t = 0;
     this._raf = null;
@@ -308,6 +335,7 @@ class WeatherScene {
       y: anywhere ? Math.random() * this.h : -rnd(40, 200),
       len: heavy ? rnd(34, 92) : rnd(22, 62),
       speed: heavy ? rnd(22, 54) : rnd(16, 38),
+      k: rnd(0.82, 1.12),     // 受风系数：同一阵风里每根雨吹偏的程度略有不同
       // 透明度比参考实现高一档：那边是白天的浅灰场景，雨丝天然有对比度；
       // 我们这边夜里天空接近 rgb(25,32,59)，照搬会淡成一层擦痕。
       alpha: heavy ? rnd(0.20, 0.44) : rnd(0.18, 0.40),
@@ -377,6 +405,52 @@ class WeatherScene {
     this.darkK = clamp((0.44 - this.lum) / 0.38, 0, 1);
   }
 
+  /**
+   * 注入地理坐标（用于天体计算）
+   * @param {number} lat - 纬度
+   * @param {number} lon - 经度
+   */
+  setLocation(lat, lon) {
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      this.lat = lat;
+      this.lon = lon;
+      this.windField.setHemisphere(lat);
+    }
+  }
+
+  /**
+   * 注入风场数据
+   * @param {number} speed - 风速 (km/h)
+   * @param {number} direction - 气象风向（度，风从哪来，0=北）
+   */
+  setWind(speed, direction) {
+    this.windField.set(speed, direction);
+  }
+
+  /**
+   * 跟天空渐变对齐时钟。天空按「小时数」插值，太阳也必须按同一个小时数算，
+   * 否则实验台拖到正午、太阳却还在真实时间的位置上。
+   * @param {number|null} hour 小时数；null = 跟随真实时间
+   * @param {number|null} [tz] hour 所在时区（UTC 偏移小时），null = 浏览器时区
+   */
+  setClock(hour, tz = null) {
+    this.clockHour = Number.isFinite(hour) ? hour : null;
+    this.clockTz = Number.isFinite(tz) ? tz : null;
+  }
+
+  /** 当前用于天体计算的时刻 */
+  get now() {
+    const now = new Date();
+    if (this.clockHour === null) return now;
+    if (this.clockTz === null) {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      return new Date(d.getTime() + this.clockHour * 3600e3);
+    }
+    const mid = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    return new Date(mid + (this.clockHour - this.clockTz) * 3600e3);
+  }
+
   /** 供自动化测试与调试读取 */
   get counts() {
     let bokeh = 0;
@@ -402,16 +476,31 @@ class WeatherScene {
     const wet = this.isWet;
     const storm = this.profile.precip === 'storm';
 
-    // --- 雨丝：风把雨吹斜，且与运动方向一致（早先版本雨是"逆风"的）---
-    const windX = wet ? 0.42 : 0.26;
+    // 太阳位置（几十次三角运算，逐帧算也不到 0.01ms）
+    this.sun = getSunPosition(this.lat, this.lon, this.now);
+
+    this.sunHalo.update(dt, this.sun, this.key);
+    this.shootingStars.update(dt, this.sun, this.key);
+    this.windField.update(dt);
+    this.lightningRim.update(this.lightning);
+    this.lightningRim.applyToCSS();
+
+    /* --- 雨丝：画出来的斜度 = 运动的方向 ---
+       竖直速度是终端速度（重力与空气阻力平衡），水平速度是风给的：
+       vx = vy·tan(偏角)。偏角带符号（正 = 向右），雨丝的线段也按同一个
+       偏角画，所以永远是「顺着自己的线条」落下。逐丝的 s.k 让每根的
+       受风略有不同 —— 重的雨滴吹得少，整体大致一致而不是一排平行线。 */
+    const lean = this.windField.lean;
     for (const s of this.streaks) {
       s.y += s.speed * dt * 60;
-      s.x += s.speed * windX * dt * 60;
+      s.x += s.speed * Math.tan(lean * s.k) * dt * 60;
+
       if (s.y > this.h + 70) {
         Object.assign(s, this.mkStreak(storm));
         s.y = -rnd(40, 220);
       }
       if (s.x > this.w + 160) s.x = -150;
+      if (s.x < -160) s.x = this.w + 150;
     }
 
     // --- 雪：全局风力随时间缓慢摆动，营造自然飘拂 ---
@@ -494,18 +583,29 @@ class WeatherScene {
 
     ctx.clearRect(0, 0, this.w, this.h);
 
+    // 1. 基础天空层
     this.drawHorizonGlow(ctx, dk);
+
+    // 2. 日晕（太阳本身也在这一层）
+    this.sunHalo.render(ctx, this.w, this.h, this.sun, this.lat);
+
+    // 3. 星空与雾霾
     this.drawStars(ctx, dk);
     this.drawHaze(ctx);
 
+    // 4. 降水粒子
     if (this.isWet) this.drawRain(ctx, dk);
     else if (this.profile.precip !== 'snow') this.drawMotes(ctx, dk);
 
+    // 5. 闪电
     if (this.lightning > 0.004) this.drawFlash(ctx);
     if (this.boltLife > 0 && this.boltPaths) this.drawBolt(ctx);
 
-    // 雪压在雾层之上，避免白色粒子被前景雾幕吞掉
+    // 6. 雪（压在雾层之上）
     if (this.profile.precip === 'snow') this.drawSnow(ctx, S, dk);
+
+    // 7. 流星（最上层）
+    this.shootingStars.render(ctx);
   }
 
   /* 地平线暖光带：大气散射让画面「有空气」。
@@ -554,21 +654,20 @@ class WeatherScene {
     ctx.fillRect(0, this.h * 0.26, this.w, this.h * 0.74);
   }
 
-  /* 室外雨丝：景深淡出 + 顺风倾斜 + 暴雨雨帘 + 贴地水雾 */
+  /* 室外雨丝：景深淡出 + 真实风场倾斜 + 暴雨雨帘 + 贴地水雾 */
   drawRain(ctx, dk) {
     const storm = this.profile.precip === 'storm';
     const bot = this.pal.bot;
 
     // 雨的颜色随时段走：白天偏亮白，夜里偏冷灰蓝。
-    // 夜间的基准色刻意提亮过 —— 雨丝是被天光和灯光打亮的，若跟着天色一起
-    // 压暗到 rgb(105,120,145)，落在 rgb(25,32,59) 的夜空上几乎读不出来。
     const rainDay = mix([232, 242, 252], bot, 0.26);
     const rainNight = mix([190, 205, 232], this.pal.mid, 0.18);
     const col = mix(rainDay, rainNight, dk);
 
+    const lean = this.windField.lean;
+
     ctx.save();
     ctx.lineCap = 'round';
-    // 颜色串只拼一次，逐粒子的透明度交给 globalAlpha
     ctx.strokeStyle = rgbStr(col);
 
     for (const s of this.streaks) {
@@ -577,8 +676,9 @@ class WeatherScene {
       ctx.globalAlpha = s.alpha * depthK;
       ctx.lineWidth = s.w;
       ctx.beginPath();
+      // 线段与运动方向一致：顺风的一端在下
       ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x + s.len * 0.30, s.y + s.len);
+      ctx.lineTo(s.x + s.len * Math.tan(lean * s.k), s.y + s.len);
       ctx.stroke();
     }
 
@@ -587,13 +687,17 @@ class WeatherScene {
       ctx.globalAlpha = 0.03 + this.lightning * 0.06;
       ctx.strokeStyle = rgbStr(mix(col, [255, 255, 255], 0.3));
       ctx.lineWidth = 0.5;
-      for (let x = 0; x < this.w; x += 5) {
+      // 雨帘跟雨丝同一个偏角；斜了以后要从屏幕外起笔，才铺得满
+      const dx = this.h * Math.tan(lean);
+      const x0 = Math.min(0, -dx);
+      const x1 = this.w + Math.max(0, -dx);
+      for (let x = Math.floor(x0 / 5) * 5; x < x1; x += 5) {
         // 位置由 x 决定而不是每帧随机：随机会让雨帘变成一片噪点闪烁
-        const jitter = ((x * 2654435761) % 1000) / 1000;
+        const jitter = ((Math.abs(x) * 2654435761) % 1000) / 1000;
         if (jitter > 0.62) continue;
         ctx.beginPath();
         ctx.moveTo(x + (jitter - 0.5) * 4, 0);
-        ctx.lineTo(x + (jitter - 0.5) * 4 + this.w * 0.002, this.h);
+        ctx.lineTo(x + (jitter - 0.5) * 4 + this.w * 0.002 + dx, this.h);
         ctx.stroke();
       }
     }

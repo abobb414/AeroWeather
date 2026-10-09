@@ -320,6 +320,12 @@ export class GlassLayer {
     this._fog = 0;                 // 水膜当前可见度，向 fogTarget 缓动
     this._grid = new Map();
 
+    // 新增：风场角度与冷凝交互
+    this.windAngle = 0;
+    this._mouseX = 0;
+    this._mouseY = 0;
+    this._lastWipe = 0;
+
     this._raf = null;
     this._last = 0;
     this._running = false;
@@ -327,6 +333,7 @@ export class GlassLayer {
 
     this.resize = this.resize.bind(this);
     this.loop = this.loop.bind(this);
+    this._onPointerMove = this._onPointerMove.bind(this);
   }
 
   init() {
@@ -345,6 +352,10 @@ export class GlassLayer {
       if (document.hidden) this.pause();
       else this.resume();
     });
+
+    // 监听鼠标/触摸移动，用于冷凝擦拭
+    // 挂在 window 上：玻璃层是 pointer-events:none（不能挡住下面的内容），画布自己收不到事件
+    window.addEventListener('pointermove', this._onPointerMove, { passive: true });
 
     this._running = true;
     if (this._reduced) {
@@ -675,10 +686,18 @@ export class GlassLayer {
     d.owner = null;
   }
 
-  /** 玻璃倾角（雨天默认近乎垂直下落，雷暴时阵风偏移更大） */
+  /** 玻璃倾角（雨天默认近乎垂直下落，受真实风场影响） */
   axisAngle() {
     const gustRange = this.isStorm ? 0.35 : 0.16;
-    return Math.PI / 2 + rnd(-gustRange, gustRange);
+    // 角度从 +x 轴量起、π/2 = 正下方；角度减小 = 向右偏，所以顺风（正）要减
+    return Math.PI / 2 + rnd(-gustRange, gustRange) - (this.windAngle || 0) * 0.6;
+  }
+
+  /**
+   * 注入风场偏角（弧度，带符号：正 = 向右），由 scene-weather 的 WindField 给出
+   */
+  setWindAngle(angle) {
+    this.windAngle = angle || 0;
   }
 
   /* ------------------------------------------------------------ 更新 */
@@ -737,6 +756,41 @@ export class GlassLayer {
     }
   }
 
+  /**
+   * 鼠标/触摸移动处理：无 UI 指尖擦拭
+   */
+  _onPointerMove(e) {
+    if (!this.isWet) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const now = performance.now();
+    const dt = (now - this._lastWipe) / 1000;
+
+    if (this._lastWipe > 0 && dt < 0.05) {
+      // 拖动轨迹：擦除水膜
+      const dx = x - this._mouseX;
+      const dy = y - this._mouseY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 2) {
+        const steps = Math.ceil(dist / 8);
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const ix = this._mouseX + dx * t;
+          const iy = this._mouseY + dy * t;
+          this.wipe(ix, iy, 24, 0.6);
+        }
+      }
+    }
+
+    this._mouseX = x;
+    this._mouseY = y;
+    this._lastWipe = now;
+  }
+
   update(dt) {
     this.t += dt;
     const wet = this.isWet;
@@ -785,7 +839,9 @@ export class GlassLayer {
       d.steerIn = (d.steerIn ?? rnd(0.2, 0.9)) - dt;
       if (d.steerIn <= 0) {
         d.steerIn = rnd(0.25, 1.1);
-        d.drift = rnd(-1, 1) * d.wobAmp * 0.45;
+        // 风场微弱引导：水痕带有自然微弧度
+        const windBias = this.windAngle * 0.15;
+        d.drift = (rnd(-1, 1) * d.wobAmp * 0.45) + windBias;
         d.stall = Math.random() < 0.18 ? rnd(0.08, 0.3) : 0;
       }
       if (d.stall > 0) d.stall -= dt;

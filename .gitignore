@@ -13,3 +13,5 @@ test/shots/
 
 # macOS
 .DS_Store
+.vercel
+.env*

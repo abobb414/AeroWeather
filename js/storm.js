@@ -52,6 +52,11 @@ const state = {
   bolt: false,             // 定格一道闪电
   realtime: false,         // 跟随真实时间
   glassOn: true,
+  windSpeed: 15,           // 风速 km/h
+  windDir: 180,            // 风向度
+  lat: 39.9,               // 纬度
+  lon: 116.4,              // 经度
+  showHalo: false,         // 强制显示日晕/月晕
 };
 
 /* 天气切换按钮：键就是 scene-weather.js 的 PROFILE 键 */
@@ -84,6 +89,15 @@ function refresh() {
   weatherScene.setSky(theme.colors, theme.luminance);
   glassLayer.setSky(theme.colors);   // 折射取景要知道玻璃后面的天色
 
+  // 太阳位置（日晕）：时刻滑块按「所选经度的当地时间」理解，
+  // 拖经度不会把北京的 12:00 算成纽约的半夜
+  weatherScene.setLocation(state.lat, state.lon);
+  weatherScene.setClock(state.realtime ? null : hour, state.realtime ? null : Math.round(state.lon / 15));
+
+  // 风场：雨丝偏角与运动方向，玻璃水痕跟着微偏
+  weatherScene.setWind(state.windSpeed, state.windDir);
+  glassLayer.setWindAngle(weatherScene.windField.targetLean);
+
   const darkK = clamp01((0.44 - theme.luminance) / 0.38);
   const tint = waterTint(theme.colors.bot, darkK);
   glassLayer.setLight({
@@ -94,11 +108,24 @@ function refresh() {
   });
 
   // 面板读数
+  weatherScene.step(0);   // 立刻按新时刻算一次太阳，读数不滞后一帧
+  const sun = weatherScene.sun || {};
+  const wf = weatherScene.windField;
   $('readout').textContent = JSON.stringify({
     scene: state.scene,
     hour: fmtHour(hour),
     ink: theme.ink,
     luminance: +theme.luminance.toFixed(4),
+    sun: {
+      azimuth: sun.azimuth?.toFixed(1) ?? '—',
+      altitude: sun.altitude?.toFixed(1) ?? '—',
+      halo: +weatherScene.sunHalo.target.toFixed(2),
+    },
+    wind: {
+      speed: state.windSpeed,
+      from: state.windDir,
+      lean: `${(wf.targetLean * 57.3).toFixed(1)}°${wf.targetLean > 0 ? ' →' : wf.targetLean < 0 ? ' ←' : ''}`,
+    },
     sky: {
       top: theme.colors.top.map(Math.round),
       mid: theme.colors.mid.map(Math.round),
@@ -189,6 +216,30 @@ function buildPanel() {
     refresh();
   });
 
+  $('windSpeed').addEventListener('input', (e) => {
+    state.windSpeed = Number(e.target.value);
+    $('windSpeedLbl').textContent = state.windSpeed;
+    refresh();
+  });
+
+  $('windDir').addEventListener('input', (e) => {
+    state.windDir = Number(e.target.value);
+    $('windDirLbl').textContent = state.windDir;
+    refresh();
+  });
+
+  $('lat').addEventListener('input', (e) => {
+    state.lat = Number(e.target.value);
+    $('latLbl').textContent = state.lat.toFixed(1);
+    refresh();
+  });
+
+  $('lon').addEventListener('input', (e) => {
+    state.lon = Number(e.target.value);
+    $('lonLbl').textContent = state.lon.toFixed(1);
+    refresh();
+  });
+
   $('realtime').onclick = () => {
     state.realtime = !state.realtime;
     $('realtime').classList.toggle('on', state.realtime);
@@ -231,6 +282,15 @@ function buildPanel() {
     applyFocus(state.scene);   // 没有玻璃就没有对焦对象，窗外恢复清晰
   };
 
+  $('spawnMeteor').onclick = () => weatherScene.shootingStars.spawn();
+
+  // 强制显示日晕：无视天气与太阳高度（太阳在地平线下时按 20° 的位置画）
+  $('showHalo').onclick = () => {
+    state.showHalo = !state.showHalo;
+    $('showHalo').classList.toggle('on', state.showHalo);
+    weatherScene.sunHalo.force = state.showHalo;
+  };
+
   $('hide').onclick = () => document.body.classList.toggle('panel-hidden');
 }
 
@@ -249,7 +309,20 @@ if (typeof window !== 'undefined') {
 
 /* 面板可能被 weather.html 的样式影响，先等 DOM 就绪 */
 const boot = () => {
+  const q = new URLSearchParams(location.search);
+  if (SCENES.some(([k]) => k === q.get('scene'))) state.scene = q.get('scene');
+  if (q.has('hour')) state.hour = Math.min(23.95, Math.max(0, Number(q.get('hour')) || 0));
+  if (q.has('wind')) state.windSpeed = Number(q.get('wind')) || 0;
+  if (q.has('dir')) state.windDir = Number(q.get('dir')) || 0;
+  if (q.has('halo')) state.showHalo = true;
+  if (q.get('panel') === '0') document.body.classList.add('panel-hidden');
+
   buildPanel();
+  for (const [id, v, lbl] of [['windSpeed', state.windSpeed], ['windDir', state.windDir]]) {
+    $(id).value = String(v);
+    $(`${id}Lbl`).textContent = String(v);
+  }
+  if (state.showHalo) { $('showHalo').classList.add('on'); weatherScene.sunHalo.force = true; }
 
   const h = $('hour');
   h.value = String(state.hour);
