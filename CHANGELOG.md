@@ -3,6 +3,39 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.1] - 2026-10-09
+
+> 只动品牌与署名，渲染管线一行未改 —— 所以是 PATCH。
+
+### 变更
+
+- **左上角品牌图标更换**。旧图标（同样是「云 + 太阳」线稿）换成 icons8
+  **`pulsar-line / partly-cloudy-day`** 的 1600px 官方源（`assets/logo-weather.png`）。
+
+  取景沿用旧资产的既有约定：**裁到内容 bbox → 补成正方形（内容居中）→ 缩到 160×160**。
+  这一条是为了保持光学尺寸不变 —— 旧资产的 bbox 是 `(0,17,160,143)`（内容长边正好撑满画布），
+  若直接把 1600 画布整体缩下来，图标会比原来窄 7.5%，与站名并排时看得出来。
+  新资产 bbox `(0,14,160,146)`，与旧版几乎重合。
+
+  **黑色像素按「白色版本」反色为纯白**（源是纯黑单色线稿，唯一色 `(0,0,0)`）。
+  ⚠️ 但屏幕上的颜色**不由此决定**：`.brand-logo` 走的是 CSS mask，
+  `background: currentColor` + `color: var(--ink)`，mask 只读 alpha 通道 ——
+  所以深色天空仍是白 logo、浅色天空仍是墨 logo，与换图前完全一致。
+  资产做成白色是为了让文件本身在深底上可直接使用。
+
+  mask 的 URL 同步加了 `?v=2`：本项目无构建流程，只换文件不改 URL 的话，
+  浏览器会一直拿缓存里的旧 logo（与 favicon 同理）。
+
+### 新增
+
+- **版权声明**：主站页脚（`.colophon` 新增 `.credit` 行）、强对流实验台面板底部，
+  以及中英两份 README 各新增「版权」一节。署名沿用作品集 abobb.com 的既有写法
+  **`Designed & Coded by AlistairBo · © 2026`**。
+  README 里同时补上了 Icons8 的署名（其免费许可要求）与图标来源说明。
+
+- 页脚 `.colophon` 加 `flex-wrap`，版权行以 `flex-basis: 100%` 独占第二行 ——
+  窄屏下不会把「数据源」与「更新时间」挤断。
+
 ## [2.0.0] - 2026-10-09
 
 > 为什么是 2.0.0 而不是 1.1.0：这一次改的是**渲染模型本身**，不是叠一层效果。
@@ -245,6 +278,7 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[2.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.1
 [2.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.0
 [1.0.4]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.4
 [1.0.3]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.3

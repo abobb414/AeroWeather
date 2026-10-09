@@ -202,8 +202,11 @@ p, dl, dd, dt { margin: 0; }
   flex-shrink: 0;
   background: currentColor;
   color: var(--ink);
-  -webkit-mask: url('../assets/logo-weather.png') center / contain no-repeat;
-          mask: url('../assets/logo-weather.png') center / contain no-repeat;
+  /* ?v= 是必须手动改的缓存指纹（本项目无构建流程）：只换文件不改 URL，
+     浏览器会一直拿旧的 logo —— 与 favicon 同理，见 weather.html 顶部注释。
+     2026-10-09 换图（pulsar-line / partly-cloudy-day）时由 v=1 提到 v=2。 */
+  -webkit-mask: url('../assets/logo-weather.png?v=2') center / contain no-repeat;
+          mask: url('../assets/logo-weather.png?v=2') center / contain no-repeat;
   /* 不加任何阴影（用户定案，别再往回加）。
      参考页 start.abobb.site 的 brand-mark 也是纯色 mask，没有 filter。 */
 }
@@ -837,6 +840,9 @@ p, dl, dd, dt { margin: 0; }
 
 .colophon {
   display: flex;
+  /* 允许换行：版权行靠 flex-basis:100% 独占第二行，
+     窄屏不会把「数据源」和「时间戳」挤断。 */
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--s4);
   padding-top: var(--s6);
@@ -846,6 +852,14 @@ p, dl, dd, dt { margin: 0; }
 }
 
 #stamp { font-family: var(--mono); font-weight: 300; }
+
+/* 版权行：与站点其它文字同一套墨色（--ink-4），随天空明暗自动转白/转墨 */
+.credit {
+  flex-basis: 100%;
+  font-family: var(--mono);
+  font-weight: 300;
+  letter-spacing: .06em;
+}
 
 /* 玻璃面水珠（js/glass-layer.js）  —— 图层 ②
    这一层贴在内容**后面** —— 它是「镜头前方」的近景雨珠，不是窗外的雨。

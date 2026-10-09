@@ -20,7 +20,7 @@ It doesn't pour numbers into cards — it draws the world outside the window. Th
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#technical-architecture)
 [![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#project-structure)
 [![City DB](https://img.shields.io/badge/city_database-34_provinces_363_cities_2855_districts-0ea5e9?style=flat-square)](#city-search-local-first--online-fallback)
-[![Version](https://img.shields.io/badge/version-2.0.0-ffd479?style=flat-square)](#changelog)
+[![Version](https://img.shields.io/badge/version-2.0.1-ffd479?style=flat-square)](#changelog)
 
 </div>
 
@@ -460,4 +460,20 @@ The playground additionally accepts `?scene=&hour=&wind=&dir=&halo&panel=0` — 
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). Current version **v2.0.0** (2026-10-09).
+See [CHANGELOG.md](CHANGELOG.md). Current version **v2.0.1** (2026-10-09).
+
+---
+
+## Copyright
+
+**Designed & Coded by AlistairBo · © 2026**
+
+All code, copy, interface design and screenshots in this project were designed and built by
+**AlistairBo**, who holds the copyright.
+
+The interface icons come from [Icons8](https://icons8.com), credited here as required by their free
+licence; weather data is provided by [Caiyun](https://caiyunapp.com) and
+[Open-Meteo](https://open-meteo.com), each retaining its own copyright.
+The brand icon in the top-left corner is derived from `pulsar-line / partly-cloudy-day`
+(official 1600px source) by trimming and proportional downscaling; its white variant was produced
+by inverting the black pixels of that source.

@@ -22,7 +22,7 @@
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#技术架构)
 [![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#项目结构)
 [![City DB](https://img.shields.io/badge/%E8%A1%8C%E6%94%BF%E5%8C%BA%E5%88%92-34%E7%9C%81_363%E5%B8%82_2855%E5%8C%BA%E5%8E%BF-0ea5e9?style=flat-square)](#城市检索本地优先--在线兜底)
-[![Version](https://img.shields.io/badge/version-2.0.0-ffd479?style=flat-square)](#更新日志)
+[![Version](https://img.shields.io/badge/version-2.0.1-ffd479?style=flat-square)](#更新日志)
 
 </div>
 
@@ -487,4 +487,17 @@ curl -s 'https://weather.abobb.com/api/caiyun?health'   # → {"ok":true,"hasTok
 
 ## 更新日志
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.0.0**（2026-10-09）。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.0.1**（2026-10-09）。
+
+---
+
+## 版权
+
+**Designed & Coded by AlistairBo · © 2026**
+
+本项目的代码、文案、界面设计与全部截图均由 **AlistairBo** 设计与实现，版权归其所有。
+
+界面图标来自 [Icons8](https://icons8.com)（中文站 [igoutu.cn](https://igoutu.cn)），按其免费许可在此署名；
+天气数据由[彩云天气](https://caiyunapp.com)与 [Open-Meteo](https://open-meteo.com) 提供，版权归各自所有。
+页面顶部左上角的品牌图标为 `pulsar-line / partly-cloudy-day`（1600px 官方源）经裁边、等比缩放而来，
+白色版本由该源的黑色像素反色得到。

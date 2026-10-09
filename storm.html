@@ -311,6 +311,19 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* 版权：与主站页脚同一句、同一套写法（mono / 低对比墨色）。
+   这页没有文档流底部（html,body 是 overflow:hidden 的全屏画布），
+   所以挂在面板末尾 —— 面板收起后随之隐藏，不算丢失。 */
+.credit {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-line);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
 /* 收起状态下给一个能点回来的小把手 */
 .reopen {
   position: fixed;
@@ -389,6 +402,8 @@ body.panel-hidden .reopen {
     • <strong>擦拭</strong>: 雨天时鼠标拖动擦除水膜，3~5秒后回雾<br>
     • <strong>闪电高光</strong>: 雷暴时观察画面边缘卡片瞬闪
   </p>
+
+  <p class="credit">Designed &amp; Coded by AlistairBo · © 2026</p>
 </section>
 
 <button class="reopen" id="show">显示面板</button>
