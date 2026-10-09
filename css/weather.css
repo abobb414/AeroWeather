@@ -853,9 +853,16 @@ p, dl, dd, dt { margin: 0; }
 
 #stamp { font-family: var(--mono); font-weight: 300; }
 
-/* 版权行：与站点其它文字同一套墨色（--ink-4），随天空明暗自动转白/转墨 */
+/* 版权行：与站点其它文字同一套墨色（--ink-4），随天空明暗自动转白/转墨。
+   对齐：flex-basis:100% 已让它独占整行，再靠 text-align 锚到**页面中轴**
+   （.colophon 在 .sheet 之内，而 .sheet 是 margin:0 auto 的定宽块，
+   所以这一行的几何中心就是版面中心，不是视口中心 —— 两者在大屏下一致）。
+   间距：margin-top 叠在 .colophon 的 row-gap 之上，把它从「数据源那一行的
+   附注」拉开成独立的页脚落款，落点在整页最下方。 */
 .credit {
   flex-basis: 100%;
+  margin-top: var(--s10);
+  text-align: center;
   font-family: var(--mono);
   font-weight: 300;
   letter-spacing: .06em;

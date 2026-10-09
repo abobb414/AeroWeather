@@ -20,7 +20,7 @@ It doesn't pour numbers into cards — it draws the world outside the window. Th
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#technical-architecture)
 [![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#project-structure)
 [![City DB](https://img.shields.io/badge/city_database-34_provinces_363_cities_2855_districts-0ea5e9?style=flat-square)](#city-search-local-first--online-fallback)
-[![Version](https://img.shields.io/badge/version-2.0.1-ffd479?style=flat-square)](#changelog)
+[![Version](https://img.shields.io/badge/version-2.0.2-ffd479?style=flat-square)](#changelog)
 
 </div>
 
@@ -460,7 +460,7 @@ The playground additionally accepts `?scene=&hour=&wind=&dir=&halo&panel=0` — 
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). Current version **v2.0.1** (2026-10-09).
+See [CHANGELOG.md](CHANGELOG.md). Current version **v2.0.2** (2026-10-09).
 
 ---
 

@@ -3,6 +3,24 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.2] - 2026-10-09
+
+> 上一版版权落款的对齐与间距返工，纯版式调整，仍是 PATCH。
+
+### 变更
+
+- **版权落款改为居中**。原先 `.credit` 靠 `flex-basis: 100%` 独占一行后仍沿用
+  容器默认的左对齐，视觉上像是「数据源那一行的附注」而不是落款。
+  现在加 `text-align: center` —— `.colophon` 在 `.sheet` 之内，而 `.sheet` 是
+  `margin: 0 auto` 的定宽块，所以这一行的几何中心就是**版面中轴**
+  （实测 1440 视口下两者都是 x=720），不是视口中轴。
+- **落款下移**。`.credit` 加 `margin-top: var(--s10)`，叠在 `.colophon` 的
+  `row-gap` 之上：与上一行的间距从 16px 变成 56px，落点压到整页最下方。
+  下方留白不动（`.sheet` 的 `padding-bottom`，桌面 64px / 窄屏 48px）——
+  页脚不必贴死底边，那点余量是给 iOS 底部横条留的。
+- **实验台面板落款同步居中**，上方间距 12px → 20px（+ `padding` 12px）。
+  间距比主站收一档：面板只有 340px 宽，照抄主站的 40px 会显空。
+
 ## [2.0.1] - 2026-10-09
 
 > 只动品牌与署名，渲染管线一行未改 —— 所以是 PATCH。
@@ -278,6 +296,7 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[2.0.2]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.2
 [2.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.1
 [2.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.0
 [1.0.4]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.4

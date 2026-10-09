@@ -311,13 +311,15 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* 版权：与主站页脚同一句、同一套写法（mono / 低对比墨色）。
+/* 版权：与主站页脚同一句、同一套写法（mono / 低对比墨色 / 居中）。
    这页没有文档流底部（html,body 是 overflow:hidden 的全屏画布），
-   所以挂在面板末尾 —— 面板收起后随之隐藏，不算丢失。 */
+   所以挂在面板末尾 —— 面板收起后随之隐藏，不算丢失。
+   间距比主站收一档：面板本身只有 340px 宽，按主站的 40px 拉开会显空。 */
 .credit {
-  margin: 12px 0 0;
-  padding-top: 10px;
+  margin: 20px 0 0;
+  padding: 12px 0 2px;
   border-top: 1px solid var(--panel-line);
+  text-align: center;
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.06em;

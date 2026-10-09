@@ -22,7 +22,7 @@
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#技术架构)
 [![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#项目结构)
 [![City DB](https://img.shields.io/badge/%E8%A1%8C%E6%94%BF%E5%8C%BA%E5%88%92-34%E7%9C%81_363%E5%B8%82_2855%E5%8C%BA%E5%8E%BF-0ea5e9?style=flat-square)](#城市检索本地优先--在线兜底)
-[![Version](https://img.shields.io/badge/version-2.0.1-ffd479?style=flat-square)](#更新日志)
+[![Version](https://img.shields.io/badge/version-2.0.2-ffd479?style=flat-square)](#更新日志)
 
 </div>
 
@@ -487,7 +487,7 @@ curl -s 'https://weather.abobb.com/api/caiyun?health'   # → {"ok":true,"hasTok
 
 ## 更新日志
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.0.1**（2026-10-09）。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.0.2**（2026-10-09）。
 
 ---
 
