@@ -3,7 +3,12 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.1.0] - 2026-10-09
+## [2.0.0] - 2026-10-09
+
+> 为什么是 2.0.0 而不是 1.1.0：这一次改的是**渲染模型本身**，不是叠一层效果。
+> 太阳的真实位置（`sun-position.js`）第一次进入渲染管线，渲染层序被重排，
+> 风场同时驱动雨丝走向、画面斜度与水痕漂移 —— 画面上的每一层都开始跟随
+> 「此刻太阳在哪、风往哪吹」。旧版按钟点猜的写法不再存在于代码里。
 
 ### 新增
 
@@ -240,6 +245,8 @@
 - **密钥外置**：彩云 Token 走 `config.example.js` 模板 + `config.local.js`
   （gitignore），页面优雅降级并给出配置指引。
 
+[2.0.0]: https://github.com/abobb414/AeroWeather/releases/tag/v2.0.0
+[1.0.4]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.4
 [1.0.3]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.3
 [1.0.2]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.2
 [1.0.1]: https://github.com/abobb414/AeroWeather/releases/tag/v1.0.1
