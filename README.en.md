@@ -9,7 +9,7 @@
 
 # AeroWeather
 
-**A Caiyun-powered weather dashboard: zero build, zero npm dependencies, 11 native ES Modules painting "outside the window" frame by frame**
+**A Caiyun-powered weather dashboard: zero build, zero npm dependencies, 12 native ES Modules painting "outside the window" frame by frame**
 
 It doesn't pour numbers into cards — it draws the world outside the window. The sun hangs at its real altitude, the 22° halo shows up where it belongs, rain streaks lean by the wind speed and direction Caiyun actually reported, and the droplets on the glass can be wiped aside with a fingertip.
 
@@ -18,9 +18,9 @@ It doesn't pour numbers into cards — it draws the world outside the window. Th
 [![Live Demo](https://img.shields.io/badge/Live_Demo-weather.abobb.com-2f80ed?style=flat-square&logo=icloud&logoColor=white)](https://weather.abobb.com)
 [![Build](https://img.shields.io/badge/build-none_required-3fb950?style=flat-square&logo=html5&logoColor=white)](#quick-start)
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#technical-architecture)
-[![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#project-structure)
+[![Modules](https://img.shields.io/badge/ES_Modules-12_%C3%97_5269_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#project-structure)
 [![City DB](https://img.shields.io/badge/city_database-34_provinces_363_cities_2855_districts-0ea5e9?style=flat-square)](#city-search-local-first--online-fallback)
-[![Version](https://img.shields.io/badge/version-2.0.2-ffd479?style=flat-square)](#changelog)
+[![Version](https://img.shields.io/badge/version-2.1.0-ffd479?style=flat-square)](#changelog)
 
 </div>
 
@@ -142,7 +142,7 @@ flowchart LR
     B -->|"fetch · fills days 4-7"| D["Open-Meteo<br/>secondary source"]
     B <--> E[("localStorage<br/>10 min fresh / 6 h stale")]
     A --> F["sky-gradient.js<br/>dynamic sky · sunrise/sunset anchors"]
-    A --> K["sun-position.js<br/>sun / moon position"]
+    A --> K["sun-position.js<br/>sun position"]
     A --> G["scene-weather.js<br/>Canvas world outside"]
     K -->|"azimuth · altitude"| G
     G --> G3["atmospheric-effects.js<br/>halo · meteors · wind field"]
@@ -177,7 +177,7 @@ The visual system is three layers, back to front, each independent and unaware o
 | World outside | `scene-weather.js` | Horizon warm band, 22° halo (ice-crystal spectrum + lens ghosts), stars, rain and snow particles (leaned by the real wind field), clear-night meteors, lightning (per-frame state machine, three-pass forked strokes) |
 | Glass droplets | `glass-layer.js` | Close-up droplets: wetting ring, lens body, highlight, shadow and sliding trails; six layers baked into 24 sprites; wipable by finger in the rain |
 
-Sky luminance drives both the **ink switch** (`<html data-ink="light\|dark">`) and **droplet lighting** (street-lamp colour compensation at night), so the three layers and the typography always agree. The sun's and moon's real positions are computed per frame by `sun-position.js` and fed to the halo, the meteors and the wind field — that is the skeleton of 2.0.0.
+Sky luminance drives both the **ink switch** (`<html data-ink="light\|dark">`) and **droplet lighting** (street-lamp colour compensation at night), so the three layers and the typography always agree. The sun's real position is computed per frame by `sun-position.js` and fed to the halo, the meteors and the wind field — that is the skeleton of 2.0.0.
 
 ### Data Sources and Ground Rules
 
@@ -383,10 +383,11 @@ The output is pure static, so Vercel / Cloudflare Pages / GitHub Pages all host 
 │   ├── weather.css         # frosted-glass component system · ink variables
 │   └── sky-gradient.css    # sky layer styles
 ├── js/
+│   ├── math-utils.js       # shared math / colour helpers (clamp · lerp · mix · waterTint)
 │   ├── weather.js          # state · rendering · adaptive ink
 │   ├── api.js              # source tiers · Caiyun dual channel · caching
 │   ├── sky-gradient.js     # sky gradient · sunrise/sunset anchors
-│   ├── sun-position.js     # sun / moon azimuth and altitude (simplified SPA)
+│   ├── sun-position.js     # sun azimuth and altitude (simplified SPA)
 │   ├── atmospheric-effects.js  # halo · meteors · wind field · lightning rim flash
 │   ├── scene-weather.js    # Canvas world outside (rain/snow/lightning/haze/halo/meteors)
 │   ├── glass-layer.js      # Canvas glass droplets (six sprite layers · finger wipe)
@@ -402,7 +403,7 @@ The output is pure static, so Vercel / Cloudflare Pages / GitHub Pages all host 
 └── docs/screenshots/       # README assets: 3 dashboard + 8 weather + playground + 4 feature shots
 ```
 
-Scale: 11 frontend modules, **5440 lines** (excluding the config template), plus 1578 lines of CSS and HTML.
+Scale: 12 frontend modules, **5269 lines** (excluding the config template), plus 1578 lines of CSS and HTML.
 
 ---
 
@@ -411,7 +412,7 @@ Scale: 11 frontend modules, **5440 lines** (excluding the config template), plus
 The repository currently ships **no automated test suite** (the `test/` directory is not in version control), so day-to-day changes go through three manual checks:
 
 ```bash
-# 1) Syntax check everything (11 modules + the proxy function)
+# 1) Syntax check everything (12 modules + the proxy function)
 for f in js/*.js api/*.js; do node --check "$f" || echo "FAIL $f"; done
 
 # 2) Start a local static server (it must stay resident in the background,
@@ -460,7 +461,7 @@ The playground additionally accepts `?scene=&hour=&wind=&dir=&halo&panel=0` — 
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). Current version **v2.0.2** (2026-10-09).
+See [CHANGELOG.md](CHANGELOG.md). Current version **v2.1.0** (2026-10-11).
 
 ---
 

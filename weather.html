@@ -17,26 +17,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter:wght@300;400;500;600&family=Manrope:wght@600;700&family=DM+Mono:wght@400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/weather.css">
   <link rel="stylesheet" href="css/sky-gradient.css">
+  <style>
+    /* 墨色只由 js/sky-gradient.js 的 applySkyTheme 决定（亮度阈值，唯一来源）。
+       模块写入 data-ink 之前先不露出内容，免得白字闪在浅色天空上；
+       模块加载失败时，3 秒后兜底显示（墨色取深色天空的默认值）。 */
+    html:not([data-ink]) { background: #0e1628; }
+    html:not([data-ink]) body { visibility: hidden; }
+  </style>
   <script>
-    /* 首屏墨色预判：和 js/sky-gradient.js 的判定阈值保持一致，
-       避免模块加载完成前先白字闪一下。渐变只负责把颜色铺上去，墨色这里先定好。 */
-    (function () {
-      var d = new Date();
-      var h = d.getHours() + d.getMinutes() / 60;
-      var isDaylit = h >= 7 && h < 16.3;
-      document.documentElement.dataset.ink = isDaylit ? 'light' : 'dark';
-    })();
+    setTimeout(function () {
+      if (!document.documentElement.dataset.ink) document.documentElement.dataset.ink = 'dark';
+    }, 3000);
   </script>
 </head>
 <body>
 
-<div class="sky-backdrop" id="skyBackdrop"></div>
+<div class="sky-backdrop"></div>
 <!-- 贴视口上下边缘的纯色采样条：iOS 26 Safari 从「贴边 fixed 元素的
      background-color」推导浏览器工具栏底色，渐变层采样不到，靠这两条补上。
      颜色 = 天空渐变的 top / bot 端点，肉眼与渐变无缝；别删，原因见
      css/sky-gradient.css 里那段注释。 -->
-<div class="sky-edge-tint sky-edge-top" id="skyEdgeTop"></div>
-<div class="sky-edge-tint sky-edge-bottom" id="skyEdgeBottom"></div>
+<div class="sky-edge-tint sky-edge-top"></div>
+<div class="sky-edge-tint sky-edge-bottom"></div>
 <!-- 窗外天气场景：雨 / 雪 / 闪电 / 星空全部画在这张 canvas 上（js/scene-weather.js）。
      它是一层透明覆盖层，天空渐变仍在下面的 .sky-backdrop 里。 -->
 <canvas class="weather-effects" id="weatherEffects" aria-hidden="true"></canvas>

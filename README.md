@@ -9,7 +9,7 @@
 
 # AeroWeather
 
-**彩云天气驱动的天气看板：零构建、零 npm 依赖，11 个原生 ES Module 逐帧绘出「此刻窗外」**
+**彩云天气驱动的天气看板：零构建、零 npm 依赖，12 个原生 ES Module 逐帧绘出「此刻窗外」**
 
 不是把数字塞进卡片，而是把窗外的世界画出来 ——
 太阳按真实高度角悬挂，22° 日晕出现在它该在的地方，雨丝按彩云给的风速风向倾斜，
@@ -20,9 +20,9 @@
 [![Live Demo](https://img.shields.io/badge/Live_Demo-weather.abobb.com-2f80ed?style=flat-square&logo=icloud&logoColor=white)](https://weather.abobb.com)
 [![Build](https://img.shields.io/badge/build-none_required-3fb950?style=flat-square&logo=html5&logoColor=white)](#快速开始)
 [![Dependencies](https://img.shields.io/badge/npm_dependencies-0-3fb950?style=flat-square&logo=npm&logoColor=white)](#技术架构)
-[![Modules](https://img.shields.io/badge/ES_Modules-11_%C3%97_5440_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#项目结构)
+[![Modules](https://img.shields.io/badge/ES_Modules-12_%C3%97_5269_lines-8b5cf6?style=flat-square&logo=javascript&logoColor=white)](#项目结构)
 [![City DB](https://img.shields.io/badge/%E8%A1%8C%E6%94%BF%E5%8C%BA%E5%88%92-34%E7%9C%81_363%E5%B8%82_2855%E5%8C%BA%E5%8E%BF-0ea5e9?style=flat-square)](#城市检索本地优先--在线兜底)
-[![Version](https://img.shields.io/badge/version-2.0.2-ffd479?style=flat-square)](#更新日志)
+[![Version](https://img.shields.io/badge/version-2.1.0-ffd479?style=flat-square)](#更新日志)
 
 </div>
 
@@ -153,7 +153,7 @@ flowchart LR
     B -->|"fetch · 补第 4~7 天"| D["Open-Meteo<br/>补足源"]
     B <--> E[("localStorage<br/>10 分钟新鲜 / 6 小时兜底")]
     A --> F["sky-gradient.js<br/>动态天空 · 日出日落锚点"]
-    A --> K["sun-position.js<br/>太阳 / 月球位置"]
+    A --> K["sun-position.js<br/>太阳位置"]
     A --> G["scene-weather.js<br/>Canvas 窗外世界"]
     K -->|"方位角 · 高度角"| G
     G --> G3["atmospheric-effects.js<br/>日晕 · 流星 · 风场"]
@@ -188,7 +188,7 @@ flowchart LR
 | 窗外世界 | `scene-weather.js` | 地平线暖光带、日晕（22° 冰晶色谱 + 镜头鬼影）、星空、雨雪粒子（受真实风场倾斜）、晴夜流星、闪电（逐帧状态机，三层描边分叉） |
 | 玻璃水珠 | `glass-layer.js` | 近景水珠：浸润圈、透镜体、高光、投影与滑落水痕，六层结构烘进 24 枚精灵；雨天可用手指擦出水膜 |
 
-天空亮度同时驱动**墨色切换**（`<html data-ink="light\|dark">`）与**水珠采光**（夜间走路灯色温补偿），三层与排版因此始终协调。太阳与月亮的真实位置由 `sun-position.js` 逐帧算出，喂给日晕、流星与风场 —— 这是 2.0.0 的骨架。
+天空亮度同时驱动**墨色切换**（`<html data-ink="light\|dark">`）与**水珠采光**（夜间走路灯色温补偿），三层与排版因此始终协调。太阳的真实位置由 `sun-position.js` 逐帧算出，喂给日晕、流星与风场 —— 这是 2.0.0 的骨架。
 
 ### 数据源与口径
 
@@ -411,10 +411,11 @@ python3 -m http.server 8000
 │   ├── weather.css         # 毛玻璃组件体系 · 墨色变量
 │   └── sky-gradient.css    # 天空层样式
 ├── js/
+│   ├── math-utils.js       # 共享数学 / 颜色工具（clamp · lerp · mix · waterTint）
 │   ├── weather.js          # 状态管理 · 渲染 · 墨色自适应
 │   ├── api.js              # 数据源分层 · 彩云双通道 · 缓存
 │   ├── sky-gradient.js     # 天空渐变 · 日出日落锚点
-│   ├── sun-position.js     # 太阳 / 月球方位角与高度角（简化版 SPA）
+│   ├── sun-position.js     # 太阳方位角与高度角（简化版 SPA）
 │   ├── atmospheric-effects.js  # 日晕 · 流星 · 风场 · 闪电边缘高光
 │   ├── scene-weather.js    # Canvas 窗外世界（雨雪/闪电/雾霾/日晕/流星）
 │   ├── glass-layer.js      # Canvas 玻璃水珠（六层精灵化 · 指尖拭雾）
@@ -430,7 +431,7 @@ python3 -m http.server 8000
 └── docs/screenshots/       # README 展示图：3 张主看板 + 八种天气 + 实验台 + 4 张特性图
 ```
 
-规模：前端 11 个模块 **5440 行**（不含配置模板），CSS + HTML 1578 行。
+规模：前端 12 个模块 **5269 行**（不含配置模板），CSS + HTML 1578 行。
 
 ---
 
@@ -439,7 +440,7 @@ python3 -m http.server 8000
 仓库目前**不带自动化测试套件**（`test/` 目录不在版本库内），日常改动靠三步人工核对：
 
 ```bash
-# 1) 全量语法自检（11 个模块 + 代理函数）
+# 1) 全量语法自检（12 个模块 + 代理函数）
 for f in js/*.js api/*.js; do node --check "$f" || echo "FAIL $f"; done
 
 # 2) 起本地静态服务（必须后台常驻，否则进程被子 shell 回收）
@@ -487,7 +488,7 @@ curl -s 'https://weather.abobb.com/api/caiyun?health'   # → {"ok":true,"hasTok
 
 ## 更新日志
 
-见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.0.2**（2026-10-09）。
+见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v2.1.0**（2026-10-11）。
 
 ---
 

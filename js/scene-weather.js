@@ -37,19 +37,7 @@ import {
   LightningRimFlash,
 } from './atmospheric-effects.js';
 
-const TAU = Math.PI * 2;
-const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
-const lerp = (a, b, t) => a + (b - a) * t;
-const rnd = (a, b) => a + Math.random() * (b - a);
-
-function rgbStr(rgb, a = 1) {
-  const r = Math.round(clamp(rgb[0], 0, 255));
-  const g = Math.round(clamp(rgb[1], 0, 255));
-  const b = Math.round(clamp(rgb[2], 0, 255));
-  return a >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${a})`;
-}
-
-const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+import { TAU, clamp, lerp, rnd, mix, rgbStr } from './math-utils.js';
 
 /* ---------------------------------------------------------------- 天气档位 */
 
@@ -473,7 +461,6 @@ class WeatherScene {
   step(dt) {
     this.t += dt;
 
-    const wet = this.isWet;
     const storm = this.profile.precip === 'storm';
 
     // 太阳位置（几十次三角运算，逐帧算也不到 0.01ms）

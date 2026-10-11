@@ -110,12 +110,11 @@ export const POPULAR_CITIES = REGIONAL_CITIES_NAV.flatMap(r => r.cities);
  */
 const FALLBACK_CAIYUN_TOKEN = 'YOUR_CAIYUN_TOKEN';
 
-export const CAIYUN_TOKEN =
+const CAIYUN_TOKEN =
   (typeof window !== 'undefined' && window.__CAIYUN_TOKEN__) || FALLBACK_CAIYUN_TOKEN;
 
 /** Token 是否为真实可用值（占位符视为未配置，UI 据此给出提示） */
-export const hasCaiyunToken = () =>
-  Boolean(CAIYUN_TOKEN) && CAIYUN_TOKEN !== FALLBACK_CAIYUN_TOKEN;
+export const hasCaiyunToken = () => CAIYUN_TOKEN !== FALLBACK_CAIYUN_TOKEN;
 
 const CAIYUN_BASE = 'https://api.caiyunapp.com/v2.6';
 
@@ -849,7 +848,7 @@ export async function getCompleteWeatherReport(cityObj) {
  * 时间串一律用「本地墙上时间」（与彩云 / Open-Meteo 路径保持同一语义），
  * 且数值全部可复现——容灾数据也要能稳定复现，才便于排查与回归。
  */
-export function getMockWeatherReport(cityObj) {
+function getMockWeatherReport(cityObj) {
   const now = new Date();
   const currentHour = now.getHours();
   const p2 = (n) => String(n).padStart(2, '0');

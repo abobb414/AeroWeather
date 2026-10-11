@@ -3,6 +3,56 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] - 2026-10-11
+
+> 为什么是 2.1.0 而不是 2.0.3：按 2.0.1 立下的口径，「只动署名、渲染管线一行未改」才算 PATCH。
+> 这一次渲染管线确实动了 —— 夜色时间轴被重写成一块固定的深色平台，水珠环境光（`waterTint`）
+> 也从两个页面各自的副本收进了共享模块。所以是小版本。但画面语言整体不变（八种天气、
+> 日晕、流星、风场逐帧行为一致），够不上 2.0.0 那种「渲染模型重做」，故不跳 MAJOR。
+
+### 新增
+
+- **共享数学 / 颜色工具 `js/math-utils.js`。** `clamp` / `lerp` / `mix` / `rgbStr` 这条线
+  此前在 sky-gradient、sun-position、atmospheric-effects、scene-weather、glass-layer、
+  weather、storm 七个模块里各有一份副本，调一个阈值要记得改七遍，还容易改漏。
+  现在收敛成唯一一份：`TAU / clamp / clamp01 / lerp / rnd / smooth / mix / rgbStr / luma / waterTint`。
+
+  收敛时最容易丢的是 `clamp` 的 NaN 守卫 —— 各模块原本写的都是
+  `Math.min(b, Math.max(a, Number.isFinite(v) ? v : a))`（非有限值回落到下限 `a`），
+  一旦抄成裸的 `Math.min(b, Math.max(a, v))`，`NaN` 就会一路穿透到 `fillStyle`，
+  在画布上表现为莫名其妙的黑块。共享版逐字保留了这条守卫。
+
+### 变更
+
+- **夜色时间轴重写。** 旧版把入夜拆成 preDawn / dawn / evening / lateNight 四段拼色，
+  关键帧一多，季节或经度一偏就露出「按钟点猜」的痕迹。新版只留一个**夜色平台**：
+  日落后 30 分钟 到 日出前 30 分钟整段是同一个深色，只在两端各留 30 分钟过渡 ——
+  约等于民用晨昏暮光的时长，日出前一两个小时不会再提前泛白。默认锚点（rise 6.5 / set 18.5）
+  下即 **19:00 – 06:00 为夜**，白色段（10 点 / 15 点两个固定锚点）与白天配色不动。
+
+- **首屏墨色策略改写。** 原来在 `<head>` 里内联一段按钟点猜深浅墨的预判脚本，与
+  `js/sky-gradient.js` 的亮度阈值是两套口径 —— 天气一调制（阴雨压暗天色）就可能对不上。
+  现在改成**只认模块写入的 `<html data-ink>`**（唯一来源）：写入之前 `body` 先
+  `visibility: hidden` 不露出内容，另留 3 秒兜底 —— 即使模块加载失败也是按时深墨兜住，不会白屏。
+
+- **水珠环境光 `waterTint` 收敛。** 原先 `weather.js` 与 `storm.js` 各抄一份「夜里给水色
+  混入路灯暖白、并抬 0.42 亮度下限」的实现（注释里还互相标注「与另一处逐字一致」），
+  现在只此一份，随 `math-utils.js` 共享。那条亮度下限的来由（否则水珠在深色夜空上隐形）
+  一并搬进模块注释。
+
+- **仅供内部使用的导出收回为模块私有**，对外契约收窄：
+  `sun-position` 的 `getMoonPosition` / `getDayPhase` / `getSunColor`，
+  `sky-gradient` 的 `sampleSkyPalette` / `sampleSkyInk` / `getSunAnchors`，
+  `api` 的 `CAIYUN_TOKEN` / `getMockWeatherReport`，`glass-layer` 的 `GlassLayer` 类，
+  `atmospheric-effects` 的 `sunToScreen`。
+
+### 移除
+
+- **月球算法与昼夜相工具。** `js/sun-position.js` 里的 `getMoonPosition` 及两个月球辅助
+  函数、以及从未被调用的 `getDayPhase` / `getSunColor` 一并删除 —— 渲染管线里没有任何一处
+  引用它们，是从早前月亮设想里留下来的死代码。删掉后 `sun-position.js` 只剩太阳一条线，
+  模块头注释也相应改为「太阳三维天体物理引擎」。
+
 ## [2.0.2] - 2026-10-09
 
 > 上一版版权落款的对齐与间距返工，纯版式调整，仍是 PATCH。

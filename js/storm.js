@@ -16,30 +16,9 @@
 import { applySkyTheme } from './sky-gradient.js';
 import { weatherScene } from './scene-weather.js';
 import { glassLayer } from './glass-layer.js';
+import { clamp01, mix, waterTint } from './math-utils.js';
 
 const $ = (id) => document.getElementById(id);
-const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
-const mix = (a, b, t) => [
-  a[0] + (b[0] - a[0]) * t,
-  a[1] + (b[1] - a[1]) * t,
-  a[2] + (b[2] - a[2]) * t,
-];
-
-/* ============================================================
-   水珠环境光：与 weather.js 里那套逐字一致
-   （夜里给 tint 混入路灯暖白并抬亮度下限，否则水珠在深色夜空上隐形）
-   ============================================================ */
-
-const WET_LIT = [214, 224, 244];      // 白天：天光散射后的水色
-const WET_LAMP = [255, 233, 198];     // 夜间：路灯的暖白
-
-function waterTint(bot, darkK) {
-  const day = mix(WET_LIT, bot, 0.34);
-  const base = mix(day, WET_LAMP, darkK);
-  const lum = (base[0] * 0.299 + base[1] * 0.587 + base[2] * 0.114) / 255;
-  const floor = 0.42;
-  return lum >= floor ? base : base.map((c) => Math.min(255, c * (floor / lum)));
-}
 
 /* ============================================================
    状态

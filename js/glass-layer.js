@@ -58,7 +58,7 @@
  *    它自己那套**浅色玻璃**调的。同一套数值叠到我们的深色夜空上，实测对比度
  *    只有 3.9% —— 等于没画。这是唯一需要修的东西，也只用一种方式修：
  *    给水痕的 alpha 乘一个由环境亮度反推的系数 k，几何、颜色、结构一概不动。
- *    珠体的夜间明亮度补偿在 sky-gradient / weather.js 侧（waterTint）。
+ *    珠体的夜间明亮度补偿在 weather.js / storm.js 侧（waterTint）。
  *
  * 3. 「贴在玻璃外侧」的空间线索（2026-09-29，用户明确要求修「水珠像浮在空中」）。
  *    原来六层全是半透明叠色，珠子后面的背景原样透出来 —— 读成肥皂泡 / 浮尘。
@@ -74,19 +74,7 @@
  *    原有六层的全部系数不动。
  */
 
-const TAU = Math.PI * 2;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
-const lerp = (a, b, t) => a + (b - a) * t;
-const rnd = (a, b) => a + Math.random() * (b - a);
-
-function rgbStr(rgb, a = 1) {
-  const r = Math.round(clamp(rgb[0], 0, 255));
-  const g = Math.round(clamp(rgb[1], 0, 255));
-  const b = Math.round(clamp(rgb[2], 0, 255));
-  return a >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${a})`;
-}
-
-const luminanceOf = (rgb) => (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114) / 255;
+import { TAU, clamp, lerp, rnd, mix, rgbStr, luma } from './math-utils.js';
 
 /* 半径档位：精灵化的离散化，值取自参考实现的半径区间
    （细密珠 0.8~2.6、大珠 5.5~13），按观感差异取 8 档 */
@@ -109,8 +97,6 @@ const RIM_TONE = [4, 6, 12];    // 暗边色：接近黑，深色夜空上也仍
 const WET_LEVEL = { drizzle: 0.45, rain: 1, thunderstorm: 2 };
 const SLIDE_R = 5.2;            // 静止水珠长到这个半径就挂不住了
 const GRID = 28;                // 合并检测的空间网格边长（> 两颗最大珠的合并距离）
-
-const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
 /** 水膜擦除笔刷：柔边圆 */
 function makeBrush() {
@@ -289,7 +275,7 @@ function renderDropSprite(r, dpr, L, spec, bodyLum, darkK, variant) {
 
 /* ---------------------------------------------------------------- 引擎 ---- */
 
-export class GlassLayer {
+class GlassLayer {
   constructor() {
     this.canvas = null;
     this.ctx = null;
@@ -903,7 +889,7 @@ export class GlassLayer {
 
   /** 全屏统一的两个明暗因子，取自参考实现 */
   _shading() {
-    const lum = luminanceOf(this.light.tint);
+    const lum = luma(this.light.tint);
     // 高光强度随环境亮度变化：夜里水珠不该有刺眼的白点
     // 闪电时高光短暂飙升，模拟闪光照亮玻璃上所有水珠
     const boost = this.lightning > 0.01 ? this.lightning * 0.8 : 0;

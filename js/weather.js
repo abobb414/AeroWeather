@@ -14,6 +14,7 @@ import {
   getSvgIcon,
 } from './weather-codes.js';
 import { applySkyTheme, setSunAnchors, resetSunAnchors } from './sky-gradient.js';
+import { clamp01, mix, waterTint } from './math-utils.js';
 import { weatherScene } from './scene-weather.js';
 import { glassLayer } from './glass-layer.js';
 
@@ -49,12 +50,6 @@ function toast(msg) {
 
 const num = (v, digits = 0) => (Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : '--');
 const round = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
-const clamp01 = (v) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
-const mix = (a, b, t) => [
-  a[0] + (b[0] - a[0]) * t,
-  a[1] + (b[1] - a[1]) * t,
-  a[2] + (b[2] - a[2]) * t,
-];
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => (
@@ -110,30 +105,6 @@ let currentSceneKey = 'clear';
 let simulatedHour = null;
 
 /**
- * 水珠环境光：tint 是「被打亮的水」该有的颜色。
- *
- * 这里必须偏离「天色多大我就多亮」的直觉。夜里的水珠在物理上确实只剩微弱
- * 天光可反射，照实算出来的 tint 是 (55,51,68) —— 跟夜空 (23,26,38) 几乎同色，
- * 水珠等于隐形（实测画布覆盖率 1.1%、峰值 alpha 106/255）。
- *
- * 解决方式就是把真实世界里缺掉的那一环补上：玻璃是被路灯、窗内的灯打亮的。
- * 所以夜间给 tint 混入暖白并抬一个亮度下限，水珠才立得起来。
- * 这不是"为了好看而失真"—— 城市夜景里玻璃上的雨珠本来就是这样被看见的。
- */
-const WET_LIT = [214, 224, 244];      // 白天：天光散射后的水色
-const WET_LAMP = [255, 233, 198];     // 夜间：路灯的暖白
-
-function waterTint(bot, darkK) {
-  // 白天跟着天色走（正午偏青、黄昏偏暖），夜里转向路灯
-  const day = mix(WET_LIT, bot, 0.34);
-  const base = mix(day, WET_LAMP, darkK);
-  // 亮度下限：夜里再暗也不低于 0.42，否则高光/焦散都没有立足的对比
-  const lum = (base[0] * 0.299 + base[1] * 0.587 + base[2] * 0.114) / 255;
-  const floor = 0.42;
-  return lum >= floor ? base : base.map((c) => Math.min(255, c * (floor / lum)));
-}
-
-/**
  * 天空渐变 + 全页墨色 + 天气场景，三者一次刷新。
  * 顺序不能反：Canvas 要用「调制后」的天色给雨丝和雪球上色，
  * 得等天空算完再把结果喂给它，否则雷暴天的粒子还是晴天的配色。
@@ -152,7 +123,7 @@ function updateSkyGradient() {
   // 水珠的六层高光全部由环境光染色，环境光跟着天色走。
   // dark 也抬一个下限：浸润圈、透镜中段、珠体边缘全靠它压出轮廓，
   // 纯黑在深色天空上完全看不出边界。
-  const { top, bot } = theme.colors;
+  const { bot } = theme.colors;
   const darkK = clamp01((0.44 - theme.luminance) / 0.38);
   const tint = waterTint(bot, darkK);
   glassLayer.setLight({

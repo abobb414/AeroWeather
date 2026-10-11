@@ -14,36 +14,18 @@
  * 拿它给雨丝、雪球、闪电配色，两边的天色因此永远同源，不会各画各的。
  */
 
-const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smooth = (t) => {
-  const x = clamp(t, 0, 1);
-  return x * x * (3 - 2 * x);
-};
-
-// 线性插值RGB颜色
-function lerpRgb(a, b, t) {
-  return [
-    lerp(a[0], b[0], t),
-    lerp(a[1], b[1], t),
-    lerp(a[2], b[2], t)
-  ];
-}
-
-// 将RGB数组转为CSS字符串
-function rgbStr(rgb) {
-  return `rgb(${Math.round(rgb[0])}, ${Math.round(rgb[1])}, ${Math.round(rgb[2])})`;
-}
+import { clamp, lerp, smooth, mix, rgbStr } from './math-utils.js';
 
 /* ============================================================
    真实日出日落锚点（2026-09-27 新增）
    ------------------------------------------------------------
    早年这张表是「日出 6.5-7.5 点、日落 18.5-19.5 点」写死的；
    现在日出/日落两个锚点可由数据源（Open-Meteo daily.sunrise/sunset、
-   彩云 daily.astro）注入，黎明/日出/黄昏/日落/傍晚各段跟着真实的
-   太阳走。其余锚点（4 点 / 10 点 / 15 点 / 22 点）仍固定。
+   彩云 daily.astro）注入，夜色边界、日出、早晨、黄昏、日落各段跟着真实的
+   太阳走。其余锚点（10 点 / 15 点）仍固定。
 
-   未注入时就是 6.5 / 18.5 = 原写死值，五时段基准截图逐位不变。
+   夜色边界 = 日落后 30 分钟 / 日出前 30 分钟，过渡只在这两个 30 分钟里发生。
+   未注入时就是 6.5 / 18.5，即夜色 19:00 – 06:00。
    夹取是为了防段序塌掉：漠河极昼 / 极夜那种极端太阳没法表达，
    允许把锚点夹进 [5,9] / [16.5,21.5]，牺牲极端地区的精度保整体秩序。
    ============================================================ */
@@ -69,35 +51,23 @@ export function resetSunAnchors() {
   return { ...sunAnchors };
 }
 
-/** 当前生效的锚点（调试用） */
-export function getSunAnchors() {
-  return { ...sunAnchors };
-}
 
 /**
  * 24小时天空色彩关键帧（基于物理的连续渐变）
  * 每个时段定义天顶、中层、地平线三层颜色
+ *
+ * 夜色（night）是一块固定的深色平台：日落后 30 分钟 到 日出前 30 分钟
+ * 整段就是这一个颜色，不随时间变化。两端各 30 分钟的过渡约等于民用晨昏
+ * 暮光的时长，日出前一两个小时不会提前泛白。
  */
 const SKY_KEYFRAMES = {
-  // 深夜 0-4点
+  // 夜 日落后 30 分钟 - 日出前 30 分钟
   night: {
     top: [8, 12, 30],
     mid: [14, 21, 44],
     bot: [26, 36, 66]
   },
-  // 黎明前 4-5.5点
-  preDawn: {
-    top: [22, 30, 62],
-    mid: [44, 52, 88],
-    bot: [66, 68, 118]
-  },
-  // 黎明 5.5-6.5点
-  dawn: {
-    top: [66, 68, 118],
-    mid: [140, 92, 132],
-    bot: [216, 124, 104]
-  },
-  // 日出 6.5-7.5点
+  // 日出时刻（日出前 30 分钟渐变至此）
   sunrise: {
     top: [140, 92, 132],
     mid: [216, 124, 104],
@@ -127,55 +97,40 @@ const SKY_KEYFRAMES = {
     mid: [180, 140, 160],
     bot: [240, 160, 120]
   },
-  // 日落 18.5-19.5点
+  // 日落时刻（日落后 30 分钟渐变至夜色）
   sunset: {
     top: [60, 70, 120],
     mid: [140, 92, 132],
     bot: [216, 124, 104]
-  },
-  // 傍晚 19.5-22点
-  evening: {
-    top: [22, 30, 62],
-    mid: [44, 52, 88],
-    bot: [100, 80, 110]
-  },
-  // 深夜 22-24点
-  lateNight: {
-    top: [8, 12, 30],
-    mid: [14, 21, 44],
-    bot: [26, 36, 66]
   }
 };
 
 /**
  * 根据小时数采样天空颜色。
- * 黎明侧锚点跟着真实日出走：dawn 收在日出前 1h、sunrise 段是日出后 1h；
- * 黄昏侧同理：dusk 从日落前 1.5h 起、evening 从日落后 1h 起。
- * 锚点未注入时 rise=6.5 / set=18.5，边界与旧版写死值完全一致。
+ * 夜段（日落后 30 分钟 → 日出前 30 分钟）固定取 night 色，跨午夜。
+ * 两端各 30 分钟过渡：日出前 30 分钟 night → sunrise；日落 → 日落后 30 分钟 sunset → night。
+ * 白天段：日出后 1h 为早晨、日落前 1.5h 起为黄昏。
+ * 锚点未注入时 rise=6.5 / set=18.5。
  */
 function sampleSkyColors(hour) {
   hour = ((hour % 24) + 24) % 24;
 
   const { rise, set } = sunAnchors;
-  const dawnEnd = rise - 1;        // 黎明结束 = 日出前 1h（默认 5.5）
-  const morningStart = rise + 1;   // 早晨开始 = 日出后 1h（默认 7.5）
-  const duskStart = set - 1.5;     // 黄昏开始 = 日落前 1.5h（默认 17）
-  const eveningStart = set + 1;    // 傍晚开始 = 日落后 1h（默认 19.5）
+  const nightStart = set + 0.5;    // 夜色开始 = 日落后 30 分钟
+  const nightEnd = rise - 0.5;     // 夜色结束 = 日出前 30 分钟
+  const morningStart = rise + 1;   // 早晨开始 = 日出后 1h
+  const duskStart = set - 1.5;     // 黄昏开始 = 日落前 1.5h
 
   let period1, period2, t;
 
-  if (hour < 4) {
+  if (hour >= nightStart || hour < nightEnd) {
     period1 = SKY_KEYFRAMES.night;
-    period2 = SKY_KEYFRAMES.preDawn;
-    t = hour / 4;
-  } else if (hour < dawnEnd) {
-    period1 = SKY_KEYFRAMES.preDawn;
-    period2 = SKY_KEYFRAMES.dawn;
-    t = (hour - 4) / (dawnEnd - 4);
+    period2 = SKY_KEYFRAMES.night;
+    t = 0;
   } else if (hour < rise) {
-    period1 = SKY_KEYFRAMES.dawn;
+    period1 = SKY_KEYFRAMES.night;
     period2 = SKY_KEYFRAMES.sunrise;
-    t = (hour - dawnEnd) / (rise - dawnEnd);
+    t = (hour - nightEnd) / 0.5;
   } else if (hour < morningStart) {
     period1 = SKY_KEYFRAMES.sunrise;
     period2 = SKY_KEYFRAMES.morning;
@@ -196,26 +151,18 @@ function sampleSkyColors(hour) {
     period1 = SKY_KEYFRAMES.dusk;
     period2 = SKY_KEYFRAMES.sunset;
     t = (hour - duskStart) / (set - duskStart);
-  } else if (hour < eveningStart) {
-    period1 = SKY_KEYFRAMES.sunset;
-    period2 = SKY_KEYFRAMES.evening;
-    t = (hour - set) / (eveningStart - set);
-  } else if (hour < 22) {
-    period1 = SKY_KEYFRAMES.evening;
-    period2 = SKY_KEYFRAMES.lateNight;
-    t = (hour - eveningStart) / (22 - eveningStart);
   } else {
-    period1 = SKY_KEYFRAMES.lateNight;
+    period1 = SKY_KEYFRAMES.sunset;
     period2 = SKY_KEYFRAMES.night;
-    t = (hour - 22) / 2;
+    t = (hour - set) / 0.5;
   }
 
   // 使用平滑插值
   t = smooth(t);
 
-  const top = lerpRgb(period1.top, period2.top, t);
-  const mid = lerpRgb(period1.mid, period2.mid, t);
-  const bot = lerpRgb(period1.bot, period2.bot, t);
+  const top = mix(period1.top, period2.top, t);
+  const mid = mix(period1.mid, period2.mid, t);
+  const bot = mix(period1.bot, period2.bot, t);
 
   return { top, mid, bot };
 }
@@ -260,7 +207,7 @@ function desatRgb(rgb, amt) {
 }
 
 function tintRgb(rgb, tint, amt) {
-  return amt <= 0 ? rgb : lerpRgb(rgb, tint, amt);
+  return amt <= 0 ? rgb : mix(rgb, tint, amt);
 }
 
 /*
@@ -310,7 +257,7 @@ function modulateSky(colors, weatherKey) {
  * @param {number} hour 0-24
  * @param {string} [weatherKey] 见 WEATHER_SKY 的键
  */
-export function sampleSkyPalette(hour, weatherKey = 'clear') {
+function sampleSkyPalette(hour, weatherKey = 'clear') {
   return modulateSky(sampleSkyColors(hour), weatherKey);
 }
 
@@ -352,7 +299,7 @@ const INK_THRESHOLD = 0.42;
  * @returns {{luminance:number, ink:'light'|'dark', colors:{top:number[],mid:number[],bot:number[]}}}
  *   ink='light' → 浅色天空，用深墨文字；'dark' → 深色天空，用白墨文字
  */
-export function sampleSkyInk(hour, weatherKey = 'clear') {
+function sampleSkyInk(hour, weatherKey = 'clear') {
   const c = sampleSkyPalette(hour, weatherKey);
   const luminance =
     VERTICAL_WEIGHTS.top * relLuminance(c.top) +

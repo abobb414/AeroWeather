@@ -9,15 +9,9 @@
  * 丁达尔光已移除：纯色渐变天空里没有可以「切开」光束的遮挡物，画出来只是几块亮斑。
  */
 
-const TAU = Math.PI * 2;
+import { TAU, clamp, lerp, rnd, smooth } from './math-utils.js';
+
 const DEG = Math.PI / 180;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(v) ? v : a));
-const lerp = (a, b, t) => a + (b - a) * t;
-const rnd = (a, b) => a + Math.random() * (b - a);
-const smooth = (t) => {
-  const x = clamp(t, 0, 1);
-  return x * x * (3 - 2 * x);
-};
 
 /* ============================================================
    日晕
@@ -62,7 +56,7 @@ const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${+a.toFixed(4)})`;
  * 视角是「面朝赤道、抬头看天」：北半球朝南看，东在左、西在右，
  * 所以上午太阳在左上、正午在正上、下午在右上；南半球朝北看，左右对调。
  */
-export function sunToScreen(sun, lat, w, h) {
+function sunToScreen(sun, lat, w, h) {
   let az = ((sun.azimuth % 360) + 360) % 360;
   let u;
   if (lat >= 0) {
